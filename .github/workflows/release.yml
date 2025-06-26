@@ -1,253 +1,237 @@
-name: Build and Release
+name: Release
 
 on:
   push:
     tags:
-      - 'v*'
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release'
+        required: true
+        type: string
 
-permissions: write-all
-      
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+permissions:
+  contents: write
+
 jobs:
-
-  build-juliaup:
-    runs-on: ${{ matrix.os }}-latest
-    strategy:
-      matrix:
-        label: [
-          x86_64-pc-windows-msvc-windowsstore,
-          x86_64-pc-windows-msvc-windowsappinstaller,
-          x86_64-pc-windows-gnu-msi,
-          x86_64-pc-windows-gnu-portable,
-          x86_64-apple-darwin,
-          x86_64-apple-darwin-portable,
-          x86_64-unknown-linux-gnu,
-          x86_64-unknown-linux-musl,
-          x86_64-unknown-linux-musl-portable,
-          x86_64-unknown-freebsd,
-          i686-pc-windows-msvc-windowsstore,
-          i686-pc-windows-msvc-windowsappinstaller,
-          i686-pc-windows-gnu-msi,
-          i686-pc-windows-gnu-portable,
-          i686-unknown-linux-gnu,
-          i686-unknown-linux-musl,
-          i686-unknown-linux-musl-portable,
-          aarch64-unknown-linux-gnu,
-          aarch64-unknown-linux-musl,
-          aarch64-unknown-linux-musl-portable,
-          aarch64-apple-darwin,
-          aarch64-apple-darwin-portable
-          ]
-        include:
-          - label: x86_64-pc-windows-msvc-windowsstore
-            target: x86_64-pc-windows-msvc
-            bins: --bin juliaup --bin julialauncher
-            os: windows
-            features: windowsstore,binjulialauncher
-            rustflags:
-            toolchain: stable
-          - label: x86_64-pc-windows-msvc-windowsappinstaller
-            target: x86_64-pc-windows-msvc
-            bins: --bin juliaup --bin julialauncher
-            os: windows
-            features: windowsappinstaller,binjulialauncher
-            rustflags:
-            toolchain: stable
-          - label: x86_64-pc-windows-gnu-msi
-            target: x86_64-pc-windows-gnu
-            bins: --bin juliaup --bin julialauncher
-            os: windows
-            features: binjulialauncher
-            rustflags:
-            toolchain: stable-gnu
-          - label: x86_64-pc-windows-gnu-portable
-            target: x86_64-pc-windows-gnu
-            bins: --bin juliaup --bin julia
-            os: windows
-            features: dummy
-            rustflags:
-            toolchain: stable-gnu
-          - label: i686-pc-windows-gnu-msi
-            target: i686-pc-windows-gnu
-            bins: --bin juliaup --bin julialauncher
-            os: windows
-            features: binjulialauncher
-            rustflags:
-            toolchain: stable-i686-gnu
-          - label: i686-pc-windows-gnu-portable
-            target: i686-pc-windows-gnu
-            bins: --bin juliaup --bin julia
-            os: windows
-            features: dummy
-            rustflags:
-            toolchain: stable-i686-gnu
-          - label: x86_64-apple-darwin
-            target: x86_64-apple-darwin
-            bins: --bin juliaup --bin julialauncher --bin juliainstaller
-            os: macos
-            features: selfupdate,binjuliainstaller,binjulialauncher
-            rustflags:
-            toolchain: stable
-          - label: x86_64-apple-darwin-portable
-            target: x86_64-apple-darwin
-            bins: --bin juliaup --bin julia
-            os: macos
-            features: dummy
-            rustflags:
-            toolchain: stable
-          - label: x86_64-unknown-linux-gnu
-            target: x86_64-unknown-linux-gnu
-            bins: --bin juliaup --bin julialauncher --bin juliainstaller
-            os: ubuntu
-            features: selfupdate,binjuliainstaller,binjulialauncher
-            rustflags:
-            toolchain: stable
-          - label: x86_64-unknown-linux-musl
-            target: x86_64-unknown-linux-musl
-            bins: --bin juliaup --bin julialauncher --bin juliainstaller
-            os: ubuntu
-            features: selfupdate,binjuliainstaller,binjulialauncher
-            rustflags: -C target-feature=+crt-static
-            toolchain: stable
-          - label: x86_64-unknown-linux-musl-portable
-            target: x86_64-unknown-linux-musl
-            bins: --bin juliaup --bin julia
-            os: ubuntu
-            features: dummy
-            rustflags: -C target-feature=+crt-static
-            toolchain: stable
-          - label: x86_64-unknown-freebsd
-            target: x86_64-unknown-freebsd
-            bins: --bin juliaup --bin julialauncher --bin juliainstaller
-            os: ubuntu
-            features: selfupdate,binjuliainstaller,binjulialauncher
-            rustflags:
-            toolchain: stable
-          - label: i686-pc-windows-msvc-windowsstore
-            target: i686-pc-windows-msvc
-            bins: --bin juliaup --bin julialauncher
-            os: windows
-            features: windowsstore,binjulialauncher
-            rustflags:
-            toolchain: stable
-          - label: i686-pc-windows-msvc-windowsappinstaller
-            target: i686-pc-windows-msvc
-            bins: --bin juliaup --bin julialauncher
-            os: windows
-            features: windowsappinstaller,binjulialauncher
-            rustflags:
-            toolchain: stable
-          - label: i686-unknown-linux-gnu
-            target: i686-unknown-linux-gnu
-            bins: --bin juliaup --bin julialauncher --bin juliainstaller
-            os: ubuntu
-            features: selfupdate,binjuliainstaller,binjulialauncher
-            rustflags:
-            toolchain: stable
-          - label: i686-unknown-linux-musl
-            target: i686-unknown-linux-musl
-            bins: --bin juliaup --bin julialauncher --bin juliainstaller
-            os: ubuntu
-            features: selfupdate,binjuliainstaller,binjulialauncher
-            rustflags: -C target-feature=+crt-static
-            toolchain: stable
-          - label: i686-unknown-linux-musl-portable
-            target: i686-unknown-linux-musl
-            bins: --bin juliaup --bin julia
-            os: ubuntu
-            features: dummy
-            rustflags: -C target-feature=+crt-static
-            toolchain: stable
-          - label: aarch64-unknown-linux-gnu
-            target: aarch64-unknown-linux-gnu
-            bins: --bin juliaup --bin julialauncher --bin juliainstaller
-            os: ubuntu
-            features: selfupdate,binjuliainstaller,binjulialauncher
-            rustflags:
-            toolchain: stable
-          - label: aarch64-unknown-linux-musl
-            target: aarch64-unknown-linux-musl
-            bins: --bin juliaup --bin julialauncher --bin juliainstaller
-            os: ubuntu
-            features: selfupdate,binjuliainstaller,binjulialauncher
-            rustflags: -C target-feature=+crt-static
-            toolchain: stable
-          - label: aarch64-unknown-linux-musl-portable
-            target: aarch64-unknown-linux-musl
-            bins: --bin juliaup --bin julia
-            os: ubuntu
-            features: dummy
-            rustflags: -C target-feature=+crt-static
-            toolchain: stable
-          - label: aarch64-apple-darwin
-            target: aarch64-apple-darwin
-            bins: --bin juliaup --bin julialauncher --bin juliainstaller
-            os: macos
-            features: selfupdate,binjuliainstaller,binjulialauncher
-            rustflags:
-            toolchain: stable
-          - label: aarch64-apple-darwin-portable
-            target: aarch64-apple-darwin
-            bins: --bin juliaup --bin julia
-            os: macos
-            features: dummy
-            rustflags:
-            toolchain: stable
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+      version: ${{ steps.get_version.outputs.version }}
     steps:
-    - uses: actions/checkout@v4
-    - if: ${{ contains(matrix.target, '-musl') }}
-      run: sudo apt-get install musl-tools
-    - uses: egor-tensin/setup-mingw@v2
-      if: ${{ contains(matrix.toolchain, 'stable-i686-gnu') }}
-      with:
-        platform: x86
-        version: 12.2.0
-    - uses: actions-rust-lang/setup-rust-toolchain@v1
-      if: ${{ ! contains(matrix.target, 'freebsd') }}
-      with:
-        toolchain: ${{matrix.toolchain}}
-        target: ${{matrix.target}}
-    - name: Release build
-      if: ${{ ! contains(matrix.target, 'freebsd') }}
-      uses: clechasseur/rs-cargo@v3
-      with:
-        command: build
-        tool: ${{ matrix.os == 'ubuntu' && 'cross' || 'cargo' }}
-        args: --release ${{matrix.bins}} --target ${{matrix.target}} --features ${{matrix.features}}
-      env:
-        CARGO_TARGET_x86_64-unknown-linux-musl: ${{matrix.rustflags}}
-        CARGO_TARGET_i686-unknown-linux-musl: ${{matrix.rustflags}}
-        CARGO_TARGET_aarch64-unknown-linux-musl: ${{matrix.rustflags}}
-    - name: FreeBSD release build
-      if: ${{ contains(matrix.target, 'freebsd') }}
-      uses: vmactions/freebsd-vm@v1
-      with:
-        release: "13.4"
-        usesh: true
-        mem: 8192
-        copyback: true
-        prepare: |
-          pkg install -y curl
-          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain ${{matrix.toolchain}}
+      - name: Get version from tag
+        id: get_version
         run: |
-          . "${HOME}/.cargo/env"
-          cargo build --release ${{matrix.bins}} --target ${{matrix.target}} --features ${{matrix.features}}
-    - uses: actions/upload-artifact@v4
-      with:
-        name: juliaup-${{matrix.label}}
-        path: |
-          target/${{matrix.target}}/release/juliaup
-          target/${{matrix.target}}/release/julialauncher
-          target/${{matrix.target}}/release/julia
-          target/${{matrix.target}}/release/juliaup.exe
-          target/${{matrix.target}}/release/julialauncher.exe
-          target/${{matrix.target}}/release/julia.exe
-    - uses: actions/upload-artifact@v4
-      if: ${{ contains(matrix.bins, 'juliainstaller') }}
-      with:
-        name: juliainstaller-${{matrix.label}}
-        path: |
-          target/${{matrix.target}}/release/juliainstaller
-          target/${{matrix.target}}/release/juliainstaller.exe
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.tag }}"
+          else
+            VERSION=${GITHUB_REF#refs/tags/}
+          fi
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Version: ${VERSION}"
+
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.get_version.outputs.version }}
+          name: Gup ${{ steps.get_version.outputs.version }}
+          draft: false
+          prerelease: ${{ contains(steps.get_version.outputs.version, '-') }}
+          body: |
+            ## Changes in ${{ steps.get_version.outputs.version }}
+            
+            See CHANGELOG.md for detailed release notes.
+            
+            ### Installation
+            
+            #### Quick Install (Unix)
+            ```bash
+            curl -fsSL https://github.com/gup-project/gup/releases/download/${{ steps.get_version.outputs.version }}/install.sh | sh
+            ```
+            
+            #### Quick Install (Windows)
+            ```powershell
+            irm https://github.com/gup-project/gup/releases/download/${{ steps.get_version.outputs.version }}/install.ps1 | iex
+            ```
+
+  build-release:
+    name: Build Release (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    needs: create-release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+          - os: windows-latest
+            target: i686-pc-windows-msvc
+          - os: macos-latest
+            target: x86_64-apple-darwin
+          - os: macos-latest
+            target: aarch64-apple-darwin
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Configure Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: release-${{ matrix.target }}
+
+      - name: Install cross-compilation tools (Linux)
+        if: matrix.os == 'ubuntu-latest' && matrix.target != 'x86_64-unknown-linux-gnu'
+        run: |
+          case "${{ matrix.target }}" in
+            x86_64-unknown-linux-musl)
+              sudo apt-get update && sudo apt-get install -y musl-tools
+              ;;
+            aarch64-unknown-linux-gnu)
+              sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
+              ;;
+          esac
+
+      - name: Build release binary
+        run: |
+          case "${{ matrix.target }}" in
+            aarch64-unknown-linux-gnu)
+              export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc
+              ;;
+          esac
+          cargo build --release --target ${{ matrix.target }} --features selfupdate
+
+      - name: Create archive
+        shell: bash
+        run: |
+          staging="gup-${{ needs.create-release.outputs.version }}-${{ matrix.target }}"
+          mkdir -p "$staging"
+          
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            cp target/${{ matrix.target }}/release/gup.exe "$staging/"
+            7z a "$staging.zip" "$staging"
+            echo "ASSET=$staging.zip" >> $GITHUB_ENV
+            cp target/${{ matrix.target }}/release/gup.exe "gup-${{ matrix.target }}.exe"
+            echo "BINARY=gup-${{ matrix.target }}.exe" >> $GITHUB_ENV
+          else
+            cp target/${{ matrix.target }}/release/gup "$staging/"
+            tar czf "$staging.tar.gz" "$staging"
+            echo "ASSET=$staging.tar.gz" >> $GITHUB_ENV
+            cp target/${{ matrix.target }}/release/gup "gup-${{ matrix.target }}"
+            echo "BINARY=gup-${{ matrix.target }}" >> $GITHUB_ENV
+          fi
+
+      - name: Upload Release Asset (Archive)
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ needs.create-release.outputs.version }}
+          files: ${{ env.ASSET }}
+
+      - name: Upload Release Asset (Binary)
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ needs.create-release.outputs.version }}
+          files: ${{ env.BINARY }}
+
+  create-installers:
+    name: Create Installers
+    runs-on: ubuntu-latest
+    needs: [create-release, build-release]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create Unix install script
+        run: |
+          cat > install.sh << 'EOF'
+          #!/bin/sh
+          set -e
+          
+          OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+          ARCH=$(uname -m)
+          
+          case $ARCH in
+              x86_64) ARCH="x86_64" ;;
+              aarch64|arm64) ARCH="aarch64" ;;
+              *) echo "Unsupported architecture: $ARCH"; exit 1 ;;
+          esac
+          
+          case $OS in
+              linux) TARGET="$ARCH-unknown-linux-gnu" ;;
+              darwin) TARGET="$ARCH-apple-darwin" ;;
+              *) echo "Unsupported OS: $OS"; exit 1 ;;
+          esac
+          
+          VERSION="${{ needs.create-release.outputs.version }}"
+          BINARY_NAME="gup-$TARGET"
+          DOWNLOAD_URL="https://github.com/gup-project/gup/releases/download/$VERSION/$BINARY_NAME"
+          
+          echo "Installing gup $VERSION for $TARGET..."
+          
+          INSTALL_DIR="$HOME/.local/bin"
+          mkdir -p "$INSTALL_DIR"
+          
+          curl -fsSL "$DOWNLOAD_URL" -o "$INSTALL_DIR/gup"
+          chmod +x "$INSTALL_DIR/gup"
+          
+          echo "Gup installed to $INSTALL_DIR/gup"
+          echo "Make sure $INSTALL_DIR is in your PATH"
+          EOF
+
+      - name: Create Windows install script
+        run: |
+          cat > install.ps1 << 'EOF'
+          $ErrorActionPreference = "Stop"
+          
+          $Arch = if ([Environment]::Is64BitOperatingSystem) { "x86_64" } else { "i686" }
+          $Target = "$Arch-pc-windows-msvc"
+          $Version = "${{ needs.create-release.outputs.version }}"
+          $BinaryName = "gup-$Target.exe"
+          $DownloadUrl = "https://github.com/gup-project/gup/releases/download/$Version/$BinaryName"
+          
+          Write-Host "Installing gup $Version for $Target..."
+          
+          $InstallDir = "$env:LOCALAPPDATA\gup\bin"
+          New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
+          
+          $GupPath = Join-Path $InstallDir "gup.exe"
+          Invoke-WebRequest -Uri $DownloadUrl -OutFile $GupPath
+          
+          Write-Host "Gup installed to $GupPath"
+          
+          $UserPath = [Environment]::GetEnvironmentVariable("PATH", "User")
+          if ($UserPath -notlike "*$InstallDir*") {
+              [Environment]::SetEnvironmentVariable("PATH", "$UserPath;$InstallDir", "User")
+              Write-Host "Added $InstallDir to your PATH"
+          }
+          EOF
+
+      - name: Upload install scripts
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ needs.create-release.outputs.version }}
+          files: |
+            install.sh
+            install.ps1
 
   test-juliaup:
     runs-on: ${{ matrix.os }}-latest

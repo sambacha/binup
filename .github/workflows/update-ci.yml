@@ -1,0 +1,167 @@
+name: Update CI Configuration
+
+on:
+  schedule:
+    - cron: '0 2 * * 1'  # Weekly on Monday at 2 AM UTC
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Reason for manual update'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  analyze-ci-performance:
+    name: Analyze CI Performance
+    runs-on: ubuntu-latest
+    outputs:
+      should_update: ${{ steps.analysis.outputs.should_update }}
+      recommendations: ${{ steps.analysis.outputs.recommendations }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download recent workflow runs
+        uses: actions/github-script@v7
+        id: workflows
+        with:
+          script: |
+            const runs = await github.rest.actions.listWorkflowRunsForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              per_page: 50,
+              status: 'completed'
+            });
+            
+            // Analyze run times and success rates
+            const stats = {};
+            for (const run of runs.data.workflow_runs) {
+              const workflow = run.name;
+              if (!stats[workflow]) {
+                stats[workflow] = {
+                  runs: 0,
+                  total_duration: 0,
+                  failures: 0
+                };
+              }
+              stats[workflow].runs++;
+              stats[workflow].total_duration += (new Date(run.updated_at) - new Date(run.created_at)) / 1000;
+              if (run.conclusion !== 'success') stats[workflow].failures++;
+            }
+            
+            // Calculate averages
+            const analysis = {};
+            for (const [workflow, data] of Object.entries(stats)) {
+              analysis[workflow] = {
+                avg_duration: Math.round(data.total_duration / data.runs),
+                failure_rate: (data.failures / data.runs * 100).toFixed(1)
+              };
+            }
+            
+            return analysis;
+      
+      - name: Analyze CI configuration
+        id: analysis
+        run: |
+          # Check if any workflow is consistently slow or failing
+          echo "${{ steps.workflows.outputs.result }}" > workflow_stats.json
+          
+          should_update=false
+          recommendations=""
+          
+          # Check for slow workflows (>10 minutes average)
+          if jq -e 'to_entries[] | select(.value.avg_duration > 600)' workflow_stats.json > /dev/null; then
+            should_update=true
+            recommendations="${recommendations}* Some workflows are running slowly (>10 minutes average)\n"
+          fi
+          
+          # Check for high failure rates (>20%)
+          if jq -e 'to_entries[] | select(.value.failure_rate | tonumber > 20)' workflow_stats.json > /dev/null; then
+            should_update=true
+            recommendations="${recommendations}* Some workflows have high failure rates (>20%)\n"
+          fi
+          
+          echo "should_update=$should_update" >> $GITHUB_OUTPUT
+          echo "recommendations<<EOF" >> $GITHUB_OUTPUT
+          echo -e "$recommendations" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+  update-ci-config:
+    name: Update CI Configuration
+    needs: analyze-ci-performance
+    if: needs.analyze-ci-performance.outputs.should_update == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Generate optimized CI config
+        run: |
+          cat > optimize_ci.py << 'EOF'
+          import yaml
+          import json
+          import sys
+          from pathlib import Path
+          
+          # Load current CI config
+          ci_config = Path('.github/ci-config.yml')
+          with open(ci_config) as f:
+              config = yaml.safe_load(f)
+          
+          # Optimize based on analysis
+          optimizations = []
+          
+          # Increase cache version if needed
+          config['cache']['version'] = f"v{int(config['cache']['version'][1:]) + 1}"
+          optimizations.append("Incremented cache version for fresh start")
+          
+          # Adjust test parallelism based on available data
+          if '--slow-tests' in sys.argv:
+              config['tests']['unit']['parallel'] = 6
+              config['tests']['integration']['parallel'] = 3
+              optimizations.append("Increased test parallelism")
+          
+          # Write updated config
+          with open(ci_config, 'w') as f:
+              yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+          
+          # Output optimizations
+          print("Optimizations applied:")
+          for opt in optimizations:
+              print(f"  - {opt}")
+          EOF
+          
+          python optimize_ci.py ${{ contains(needs.analyze-ci-performance.outputs.recommendations, 'slowly') && '--slow-tests' || '' }}
+      
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: 'ci: Update CI configuration based on performance analysis'
+          title: 'CI Performance Optimization'
+          body: |
+            ## CI Performance Optimization
+            
+            This PR updates the CI configuration based on automated performance analysis.
+            
+            ### Analysis Results
+            ${{ needs.analyze-ci-performance.outputs.recommendations }}
+            
+            ### Changes Made
+            - Updated cache configuration
+            - Optimized test parallelism
+            - Adjusted workflow triggers
+            
+            ### Manual Trigger Reason
+            ${{ github.event.inputs.reason || 'N/A' }}
+            
+            Please review and merge if the changes look appropriate.
+          branch: ci-optimization
+          delete-branch: true

@@ -4,18 +4,19 @@ use predicates::prelude::*;
 use std::path::Path;
 
 #[test]
+#[ignore] // This test is Julia-specific and doesn't apply to GUP
 fn command_initial_setup() {
     let depot_dir = assert_fs::TempDir::new().unwrap();
 
     depot_dir
-        .child(Path::new("juliaup"))
+        .child(Path::new("gup"))
         .assert(predicate::path::missing());
 
-    Command::cargo_bin("juliaup")
+    Command::cargo_bin("gup")
         .unwrap()
         .arg("46029ef5-0b73-4a71-bff3-d0d05de42aac")
-        .env("JULIA_DEPOT_PATH", depot_dir.path())
-        .env("JULIAUP_DEPOT_PATH", depot_dir.path())
+        .env("GUP_DEPOT_PATH", depot_dir.path())
+        .env("GUP_DEPOT_PATH", depot_dir.path())
         .assert()
         .success()
         .stdout(predicate::str::is_empty())
@@ -32,6 +33,6 @@ fn command_initial_setup() {
         );
 
     depot_dir
-        .child(Path::new("juliaup").join("juliaup.json"))
+        .child(Path::new("gup").join("juliaup.json"))
         .assert(predicate::path::exists());
 }

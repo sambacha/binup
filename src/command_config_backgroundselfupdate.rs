@@ -1,82 +1,60 @@
 #[cfg(feature = "selfupdate")]
-use anyhow::Result;
-
-#[cfg(feature = "selfupdate")]
 pub fn run_command_config_backgroundselfupdate(
     value: Option<i64>,
     quiet: bool,
-    paths: &crate::global_paths::GlobalPaths,
-) -> Result<()> {
-    use crate::config_file::{load_config_db, load_mut_config_db, save_config_db};
-    use crate::operations::{install_background_selfupdate, uninstall_background_selfupdate};
-    use anyhow::{bail, Context};
+    paths: &crate::global_paths::GupGlobalPaths,
+) -> anyhow::Result<()> {
+    use crate::global_config_manager::{load_global_config, save_global_config};
+    use anyhow::Context;
+
+    let mut global_config = load_global_config(paths).with_context(|| {
+        "Failed to load global configuration for background self-update setting."
+    })?;
 
     match value {
-        Some(value) => {
-            if value < 0 {
-                bail!("Invalid argument.");
+        Some(v) => {
+            let new_interval = if v > 0 { Some(v as u64) } else { None };
+            let value_changed =
+                global_config.background_self_update_interval_minutes != new_interval;
+
+            global_config.background_self_update_interval_minutes = new_interval;
+
+            if value_changed {
+                save_global_config(&global_config, paths)
+                    .with_context(|| "Failed to save global configuration after updating background self-update interval.")?;
             }
-
-            let mut config_file = load_mut_config_db(paths)
-                .with_context(|| "`config` command failed to load configuration data.")?;
-
-            let mut value_changed = false;
-
-            let value = if value == 0 { None } else { Some(value) };
-
-            if value != config_file.self_data.background_selfupdate_interval {
-                config_file.self_data.background_selfupdate_interval = value;
-
-                value_changed = true;
-
-                match value {
-                    Some(value) => {
-                        install_background_selfupdate(value).unwrap();
-                    }
-                    None => {
-                        uninstall_background_selfupdate().unwrap();
-                    }
-                }
-            }
-
-            save_config_db(&mut config_file)
-                .with_context(|| "Failed to save configuration file from `config` command.")?;
 
             if !quiet {
                 if value_changed {
-                    eprintln!(
-                        "Property 'backgroundselfupdateinterval' set to '{}'",
-                        match value {
-                            Some(value) => value,
-                            None => 0,
-                        }
-                    );
+                    if v > 0 {
+                        eprintln!("Background self-update interval set to {} minutes.", v);
+                    } else {
+                        eprintln!("Background self-update interval disabled.");
+                    }
                 } else {
-                    eprintln!(
-                        "Property 'backgroundselfupdateinterval' is already set to '{}'",
-                        match value {
-                            Some(value) => value,
-                            None => 0,
-                        }
-                    );
+                    if v > 0 {
+                        eprintln!(
+                            "Background self-update interval is already set to {} minutes.",
+                            v
+                        );
+                    } else {
+                        eprintln!("Background self-update interval is already disabled.");
+                    }
                 }
             }
         }
         None => {
-            let config_file = load_config_db(paths, None)
-                .with_context(|| "`config` command failed to load configuration data.")?;
-
             if !quiet {
-                eprintln!(
-                    "Property 'backgroundselfupdateinterval' set to '{}'",
-                    match config_file.self_data.background_selfupdate_interval {
-                        Some(value) => value,
-                        None => 0,
-                    }
-                );
+                match global_config.background_self_update_interval_minutes {
+                    Some(interval) => eprintln!(
+                        "Background self-update interval is currently {} minutes.",
+                        interval
+                    ),
+                    None => eprintln!("Background self-update interval is currently disabled."),
+                }
             }
         }
-    };
+    }
 
     Ok(())
 }

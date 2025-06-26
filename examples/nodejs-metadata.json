@@ -1,0 +1,172 @@
+{
+  "project_name": "nodejs",
+  "display_name": "Node.js",
+  "description": "Node.js is a JavaScript runtime built on Chrome's V8 JavaScript engine",
+  "homepage_url": "https://nodejs.org",
+  "metadata_format_version": "1.0.0",
+  "base_download_url": "https://nodejs.org/dist/",
+  "platforms": {
+    "win-x64": {
+      "os": "windows",
+      "arch": "x86_64",
+      "target_triple_pattern": "x86_64.*windows.*"
+    },
+    "win-arm64": {
+      "os": "windows", 
+      "arch": "aarch64",
+      "target_triple_pattern": "aarch64.*windows.*"
+    },
+    "darwin-x64": {
+      "os": "macos",
+      "arch": "x86_64", 
+      "target_triple_pattern": "x86_64.*darwin.*"
+    },
+    "darwin-arm64": {
+      "os": "macos",
+      "arch": "aarch64",
+      "target_triple_pattern": "aarch64.*darwin.*"
+    },
+    "linux-x64": {
+      "os": "linux",
+      "arch": "x86_64",
+      "target_triple_pattern": "x86_64.*linux.*"
+    },
+    "linux-arm64": {
+      "os": "linux", 
+      "arch": "aarch64",
+      "target_triple_pattern": "aarch64.*linux.*"
+    }
+  },
+  "default_install_config": {
+    "archive_format": "tar.gz",
+    "strip_components": 1,
+    "bin_subdir": "bin"
+  },
+  "executables": [
+    {
+      "name": "node",
+      "path_in_bin_subdir": "node"
+    },
+    {
+      "name": "npm", 
+      "path_in_bin_subdir": "npm"
+    },
+    {
+      "name": "npx",
+      "path_in_bin_subdir": "npx"
+    }
+  ],
+  "default_executable_name": "node",
+  "available_versions": {
+    "20.18.0": {
+      "release_date": "2024-10-03T15:00:00Z",
+      "artifacts": {
+        "win-x64": {
+          "url_path_suffix": "v20.18.0/node-v20.18.0-win-x64.zip",
+          "sha256": "1234567890abcdef",
+          "archive_format": "zip",
+          "strip_components": 1
+        },
+        "win-arm64": {
+          "url_path_suffix": "v20.18.0/node-v20.18.0-win-arm64.zip", 
+          "sha256": "abcdef1234567890",
+          "archive_format": "zip",
+          "strip_components": 1
+        },
+        "darwin-x64": {
+          "url_path_suffix": "v20.18.0/node-v20.18.0-darwin-x64.tar.gz",
+          "sha256": "fedcba0987654321"
+        },
+        "darwin-arm64": {
+          "url_path_suffix": "v20.18.0/node-v20.18.0-darwin-arm64.tar.gz",
+          "sha256": "9876543210fedcba"
+        },
+        "linux-x64": {
+          "url_path_suffix": "v20.18.0/node-v20.18.0-linux-x64.tar.xz",
+          "sha256": "example5678901234abcdef",
+          "archive_format": "tar.gz"
+        },
+        "linux-arm64": {
+          "url_path_suffix": "v20.18.0/node-v20.18.0-linux-arm64.tar.xz", 
+          "sha256": "exampledcba0987654321fe",
+          "archive_format": "tar.gz"
+        }
+      }
+    },
+    "18.20.4": {
+      "release_date": "2024-07-08T15:00:00Z",
+      "artifacts": {
+        "win-x64": {
+          "url_path_suffix": "v18.20.4/node-v18.20.4-win-x64.zip",
+          "sha256": "1111222233334444",
+          "archive_format": "zip",
+          "strip_components": 1
+        },
+        "darwin-x64": {
+          "url_path_suffix": "v18.20.4/node-v18.20.4-darwin-x64.tar.gz",
+          "sha256": "4444333322221111"
+        },
+        "darwin-arm64": {
+          "url_path_suffix": "v18.20.4/node-v18.20.4-darwin-arm64.tar.gz", 
+          "sha256": "aaaa1111bbbb2222"
+        },
+        "linux-x64": {
+          "url_path_suffix": "v18.20.4/node-v18.20.4-linux-x64.tar.xz",
+          "sha256": "2222bbbb1111aaaa",
+          "archive_format": "tar.gz"
+        },
+        "linux-arm64": {
+          "url_path_suffix": "v18.20.4/node-v18.20.4-linux-arm64.tar.xz",
+          "sha256": "cccc3333dddd4444", 
+          "archive_format": "tar.gz"
+        }
+      }
+    },
+    "22.0.0": {
+      "release_date": "2024-04-24T15:00:00Z",
+      "artifacts": {
+        "win-x64": {
+          "url_path_suffix": "v22.0.0/node-v22.0.0-win-x64.zip",
+          "sha256": "eeee5555ffff6666",
+          "archive_format": "zip",
+          "strip_components": 1
+        },
+        "darwin-x64": {
+          "url_path_suffix": "v22.0.0/node-v22.0.0-darwin-x64.tar.gz",
+          "sha256": "6666ffff5555eeee"
+        },
+        "darwin-arm64": {
+          "url_path_suffix": "v22.0.0/node-v22.0.0-darwin-arm64.tar.gz",
+          "sha256": "7777gggg8888hhhh"
+        },
+        "linux-x64": {
+          "url_path_suffix": "v22.0.0/node-v22.0.0-linux-x64.tar.xz",
+          "sha256": "hhhh8888gggg7777",
+          "archive_format": "tar.gz"
+        },
+        "linux-arm64": {
+          "url_path_suffix": "v22.0.0/node-v22.0.0-linux-arm64.tar.xz",
+          "sha256": "iiii9999jjjjaaaa",
+          "archive_format": "tar.gz"
+        }
+      }
+    }
+  },
+  "channels": {
+    "lts": {
+      "version_prefix": "20.",
+      "resolution_strategy": "latest_semver"
+    },
+    "current": {
+      "version_prefix": "22.",
+      "resolution_strategy": "latest_semver"
+    },
+    "v18": {
+      "version_prefix": "18.",
+      "resolution_strategy": "latest_semver"
+    },
+    "latest": {
+      "resolution_strategy": "latest_semver"
+    }
+  }
+}

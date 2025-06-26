@@ -1,0 +1,227 @@
+name: Optimized Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g., v1.0.0)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  id-token: write
+
+env:
+  RUST_BACKTRACE: 1
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # Create release first, so we can upload assets as they're built
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Extract version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.tag }}"
+          else
+            VERSION="${{ github.ref_name }}"
+          fi
+          echo "version=${VERSION#v}" >> $GITHUB_OUTPUT
+      
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          release_name: Release v${{ steps.version.outputs.version }}
+          draft: true
+          prerelease: false
+
+  # Build matrix for release binaries
+  build-matrix:
+    name: Build Release Binaries
+    needs: create-release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Tier 1 targets (fastest, most common)
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            tier: 1
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            tier: 1
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            tier: 1
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            tier: 1
+          
+          # Tier 2 targets (less common, build only for releases)
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+            tier: 2
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            tier: 2
+          - target: i686-pc-windows-msvc
+            os: windows-latest
+            tier: 2
+          - target: x86_64-unknown-freebsd
+            os: ubuntu-latest
+            tier: 2
+    uses: ./.github/workflows/build-reusable.yml
+    with:
+      target: ${{ matrix.target }}
+      os: ${{ matrix.os }}
+      features: 'bingupbootstrap'
+      artifact-name: gup-${{ needs.create-release.outputs.version }}-${{ matrix.target }}
+
+  # Package and upload release assets
+  package-assets:
+    name: Package Assets
+    needs: [create-release, build-matrix]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target:
+          - x86_64-unknown-linux-gnu
+          - x86_64-pc-windows-msvc
+          - x86_64-apple-darwin
+          - aarch64-apple-darwin
+          - x86_64-unknown-linux-musl
+          - aarch64-unknown-linux-gnu
+          - i686-pc-windows-msvc
+          - x86_64-unknown-freebsd
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: gup-${{ needs.create-release.outputs.version }}-${{ matrix.target }}
+          path: artifacts/
+      
+      - name: Create archive
+        run: |
+          cd artifacts
+          if [[ "${{ matrix.target }}" == *"windows"* ]]; then
+            7z a ../gup-${{ needs.create-release.outputs.version }}-${{ matrix.target }}.zip *
+            ASSET_PATH="../gup-${{ needs.create-release.outputs.version }}-${{ matrix.target }}.zip"
+            ASSET_TYPE="application/zip"
+          else
+            tar czf ../gup-${{ needs.create-release.outputs.version }}-${{ matrix.target }}.tar.gz *
+            ASSET_PATH="../gup-${{ needs.create-release.outputs.version }}-${{ matrix.target }}.tar.gz"
+            ASSET_TYPE="application/gzip"
+          fi
+          echo "ASSET_PATH=$ASSET_PATH" >> $GITHUB_ENV
+          echo "ASSET_TYPE=$ASSET_TYPE" >> $GITHUB_ENV
+      
+      - name: Upload Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ${{ env.ASSET_PATH }}
+          asset_name: ${{ env.ASSET_PATH }}
+          asset_content_type: ${{ env.ASSET_TYPE }}
+
+  # Platform-specific installers (only for Tier 1 targets)
+  windows-installer:
+    name: Windows Installer
+    needs: [create-release, build-matrix]
+    runs-on: windows-latest
+    if: success()
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: gup-${{ needs.create-release.outputs.version }}-x86_64-pc-windows-msvc
+          path: artifacts/x64/
+      
+      - name: Download Windows x86 artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: gup-${{ needs.create-release.outputs.version }}-i686-pc-windows-msvc
+          path: artifacts/x86/
+      
+      - name: Build MSI
+        run: |
+          # Add WiX to PATH
+          $env:Path += ";C:\Program Files (x86)\WiX Toolset v3.11\bin"
+          
+          # Build MSI
+          cd deploy/wix
+          heat dir ..\..\artifacts -gg -sfrag -dr INSTALLDIR -cg GupFiles -var var.SourceDir -out files.wxs
+          candle -arch x64 -dSourceDir="..\..\artifacts\x64" -dVersion="${{ needs.create-release.outputs.version }}" gup.wxs files.wxs
+          light -ext WixUIExtension -ext WixUtilExtension -out "..\..\gup-${{ needs.create-release.outputs.version }}-x64.msi" gup.wixobj files.wixobj
+      
+      - name: Upload MSI
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: gup-${{ needs.create-release.outputs.version }}-x64.msi
+          asset_name: gup-${{ needs.create-release.outputs.version }}-x64.msi
+          asset_content_type: application/x-msi
+
+  # Publish to package managers
+  publish-crates:
+    name: Publish to crates.io
+    needs: [package-assets]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Publish to crates.io
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
+        run: |
+          cargo publish --no-verify
+
+  # Finalize release
+  finalize-release:
+    name: Finalize Release
+    needs: [package-assets, windows-installer]
+    runs-on: ubuntu-latest
+    if: success()
+    steps:
+      - name: Publish release
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.repos.updateRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: ${{ needs.create-release.outputs.release_id }},
+              draft: false
+            })
+      
+      - name: Summary
+        run: |
+          echo "## Release Published! 🎉" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Version: ${{ needs.create-release.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "Release URL: https://github.com/${{ github.repository }}/releases/tag/v${{ needs.create-release.outputs.version }}" >> $GITHUB_STEP_SUMMARY

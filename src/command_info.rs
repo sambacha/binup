@@ -1,89 +1,67 @@
-use std::io::BufReader;
+use crate::global_config_manager::load_global_config;
+use crate::global_paths::GupGlobalPaths;
+use anyhow::{Context, Result};
+use cli_table::{
+    format::{Border, Separator}, // Corrected path
+    print_stdout,
+    Table,
+    WithTitle,
+};
+use human_sort::compare;
+use itertools::Itertools;
 
-use crate::config_file::load_config_db;
-use crate::jsonstructs_versionsdb::JuliaupVersionDB;
-use crate::operations::download_juliaup_version;
-use crate::utils::get_juliaserver_base_url;
-use crate::{get_bundled_dbversion, global_paths::GlobalPaths};
-use crate::{get_juliaup_target, get_own_version};
-use anyhow::{bail, Context, Result};
+#[derive(Table)]
+struct ManagedProjectInfoRow {
+    #[table(title = "Project Name")]
+    name: String,
+    #[table(title = "Display Name")]
+    display_name: String,
+    #[table(title = "Metadata Source URL")]
+    source_url: String,
+}
 
-pub fn run_command_info(paths: &GlobalPaths) -> Result<()> {
-    #[cfg(feature = "selfupdate")]
-    let config_file = load_config_db(paths, None).with_context(|| {
-        "`run_command_update_version_db` command failed to load configuration db."
-    })?;
+pub fn run_command_info(paths: &GupGlobalPaths) -> Result<()> {
+    println!("gup version: {}", crate::get_own_version()?);
+    println!(
+        "Platform triplet: {}",
+        crate::utils::get_target_triple_id()?
+    );
+    println!(
+        "Global configuration file: {}",
+        paths.global_config_file().display()
+    );
+    println!("gup home directory: {}", paths.guphome().display());
 
-    #[cfg(feature = "selfupdate")]
-    let juliaup_channel = match &config_file.self_data.juliaup_channel {
-        Some(juliaup_channel) => juliaup_channel.to_string(),
-        None => "release".to_string(),
-    };
+    println!("\n--- Managed Projects ---");
 
-    #[cfg(not(feature = "selfupdate"))]
-    let _config_file = load_config_db(paths, None).with_context(|| {
-        "`run_command_update_version_db` command failed to load configuration db."
-    })?;
+    let global_config =
+        load_global_config(paths).with_context(|| "Failed to load global gup configuration.")?;
 
-    // TODO Figure out how we can learn about the correctn Juliaup channel here
-    #[cfg(not(feature = "selfupdate"))]
-    let juliaup_channel = "release".to_string();
+    if global_config.managed_projects.is_empty() {
+        println!("No projects are currently managed by gup.");
+        println!("Use `gup project add <registration_file_or_url>` to add one.");
+    } else {
+        let project_rows: Vec<_> = global_config
+            .managed_projects
+            .values()
+            .map(|p_info| ManagedProjectInfoRow {
+                name: p_info.unique_name.clone(),
+                display_name: p_info.display_name.clone(),
+                source_url: p_info.source_of_truth_url.clone(),
+            })
+            .sorted_by(|a, b| compare(&a.name, &b.name))
+            .collect();
 
-    let juliaupserver_base =
-        get_juliaserver_base_url().with_context(|| "Failed to get Juliaup server base URL.")?;
+        let border = Border::builder().build();
+        let separator = Separator::builder().build();
 
-    let dbversion_url_path = match juliaup_channel.as_str() {
-        "release" => "juliaup/RELEASECHANNELDBVERSION",
-        "releasepreview" => "juliaup/RELEASEPREVIEWCHANNELDBVERSION",
-        "dev" => "juliaup/DEVCHANNELDBVERSION",
-        _ => bail!(
-            "Juliaup is configured to a channel named '{}' that does not exist.",
-            &juliaup_channel
-        ),
-    };
-
-    let dbversion_url = juliaupserver_base
-        .join(dbversion_url_path)
-        .with_context(|| {
-            format!(
-                "Failed to construct a valid url from '{}' and '{}'.",
-                juliaupserver_base, dbversion_url_path
-            )
-        })?;
-
-    let online_dbversion = download_juliaup_version(dbversion_url.as_ref())
-        .with_context(|| "Failed to download current version db version.")?;
-
-    let bundled_dbversion = get_bundled_dbversion()
-        .with_context(|| "Failed to determine the bundled version db version.")?;
-
-    let local_dbversion = match std::fs::OpenOptions::new()
-        .read(true)
-        .open(&paths.versiondb)
-    {
-        Ok(file) => {
-            let reader = BufReader::new(&file);
-
-            if let Ok(versiondb) =
-                serde_json::from_reader::<BufReader<&std::fs::File>, JuliaupVersionDB>(reader)
-            {
-                if let Ok(version) = semver::Version::parse(&versiondb.version) {
-                    Some(version)
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
-        }
-        Err(_) => None,
-    };
-
-    println!("Juliaup version: {}", get_own_version().unwrap());
-    println!("Platform triplet: {}", get_juliaup_target());
-    println!("Bundled version db: {}", bundled_dbversion);
-    println!("Online version db: {}", online_dbversion);
-    println!("Local version db: {:?}", local_dbversion);
+        print_stdout(
+            project_rows
+                .with_title()
+                .border(border)
+                .separator(separator),
+        )?;
+    }
 
     Ok(())
 }

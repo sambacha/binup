@@ -3,25 +3,25 @@ use assert_cmd::Command;
 #[test]
 fn command_status() {
     let depot_dir = tempfile::Builder::new()
-        .prefix("juliauptest")
+        .prefix("guptest")
         .tempdir()
         .unwrap();
 
-    Command::cargo_bin("juliaup")
+    Command::cargo_bin("gup")
         .unwrap()
         .arg("status")
-        .env("JULIA_DEPOT_PATH", depot_dir.path())
-        .env("JULIAUP_DEPOT_PATH", depot_dir.path())
+        .env("GUP_DEPOT_PATH", depot_dir.path())
+        .env("GUP_DEPOT_PATH", depot_dir.path())
         .assert()
         .success()
-        .stdout(" Default  Channel  Version  Update \n-----------------------------------\n");
+        .stdout("No projects are currently managed by gup.\nUse `gup project add <registration_file_or_url>` to add one.\n");
 
-    Command::cargo_bin("juliaup")
+    Command::cargo_bin("gup")
         .unwrap()
         .arg("st")
-        .env("JULIA_DEPOT_PATH", depot_dir.path())
-        .env("JULIAUP_DEPOT_PATH", depot_dir.path())
+        .env("GUP_DEPOT_PATH", depot_dir.path())
+        .env("GUP_DEPOT_PATH", depot_dir.path())
         .assert()
         .success()
-        .stdout(" Default  Channel  Version  Update \n-----------------------------------\n");
+        .stdout("No projects are currently managed by gup.\nUse `gup project add <registration_file_or_url>` to add one.\n");
 }

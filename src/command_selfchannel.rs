@@ -1,28 +1,39 @@
 #[cfg(feature = "selfupdate")]
-use anyhow::Result;
+use crate::cli::GupChannel;
+#[cfg(feature = "selfupdate")]
+use crate::global_config_manager::{load_global_config, save_global_config};
+#[cfg(feature = "selfupdate")]
+use crate::global_paths::GupGlobalPaths;
+#[cfg(feature = "selfupdate")]
+use anyhow::{Context, Result};
 
 #[cfg(feature = "selfupdate")]
 pub fn run_command_selfchannel(
-    channel: Option<crate::cli::JuliaupChannel>,
-    paths: &crate::global_paths::GlobalPaths,
+    channel_name_opt: Option<GupChannel>,
+    paths: &GupGlobalPaths,
 ) -> Result<()> {
-    use crate::config_file::{load_mut_config_db, save_config_db};
-    use anyhow::Context;
+    let mut global_config = load_global_config(paths)
+        .with_context(|| "`self channel` command failed to load gup configuration data.")?;
 
-    let mut config_file = load_mut_config_db(paths)
-        .with_context(|| "`self update` command failed to load configuration data.")?;
-
-    match channel {
-        Some(chan) => {
-            config_file.self_data.juliaup_channel = Some(chan.to_lowercase().to_string());
-            save_config_db(&mut config_file)?;
+    match channel_name_opt {
+        Some(new_channel) => {
+            let new_channel_str = new_channel.to_lowercase().to_string();
+            global_config.self_update_channel = Some(new_channel_str.clone());
+            save_global_config(&global_config, paths).with_context(|| {
+                "Failed to save configuration after setting self-update channel."
+            })?;
+            eprintln!("gup self-update channel set to '{}'.", new_channel_str);
         }
         None => {
-            let channel_name = config_file
-                .self_data
-                .juliaup_channel
-                .expect("juliaup_channel should not be empty.");
-            println!("Your juliaup is currently on channel `{}`. Run `juliaup self channel -h` for help on how to set the juliaup channel.", channel_name);
+            let current_channel = global_config
+                .self_update_channel
+                .as_deref()
+                .unwrap_or("release (default)");
+            println!(
+                "gup self-update channel is currently '{}'.",
+                current_channel
+            );
+            println!("Run `gup self channel <CHANNEL_NAME>` to change it. Available: release, releasepreview, dev.");
         }
     }
 

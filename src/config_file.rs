@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
 use std::io::{BufReader, ErrorKind, Seek, SeekFrom};
 
-use crate::global_paths::GlobalPaths;
+use crate::global_paths::GupGlobalPaths; // Changed GlobalPaths to GupGlobalPaths
 
 fn is_default<T: Default + PartialEq>(t: &T) -> bool {
     t == &T::default()
@@ -21,14 +21,16 @@ fn is_default_versionsdb_update_interval(i: &i64) -> bool {
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq)]
-pub struct JuliaupConfigVersion {
+/// Configuration for a specific installed version.
+pub struct GupConfigVersion {
     #[serde(rename = "Path")]
     pub path: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq)]
 #[serde(untagged)]
-pub enum JuliaupConfigChannel {
+/// Configuration for different types of channels (direct download, system, linked).
+pub enum GupConfigChannel {
     DirectDownloadChannel {
         #[serde(rename = "Path")]
         path: String,
@@ -54,7 +56,8 @@ pub enum JuliaupConfigChannel {
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq)]
-pub struct JuliaupConfigSettings {
+/// Global settings for GUP configuration.
+pub struct GupConfigSettings {
     #[serde(
         rename = "CreateChannelSymlinks",
         default,
@@ -69,9 +72,9 @@ pub struct JuliaupConfigSettings {
     pub versionsdb_update_interval: i64,
 }
 
-impl Default for JuliaupConfigSettings {
+impl Default for GupConfigSettings {
     fn default() -> Self {
-        JuliaupConfigSettings {
+        GupConfigSettings {
             create_channel_symlinks: false,
             versionsdb_update_interval: default_versionsdb_update_interval(),
         }
@@ -79,7 +82,8 @@ impl Default for JuliaupConfigSettings {
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq)]
-pub struct JuliaupOverride {
+/// Directory-specific version override.
+pub struct GupOverride {
     #[serde(rename = "Path")]
     pub path: String,
     #[serde(rename = "Channel")]
@@ -87,17 +91,18 @@ pub struct JuliaupOverride {
 }
 
 #[derive(Serialize, Deserialize, Clone, PartialEq)]
-pub struct JuliaupConfig {
+/// Main GUP configuration structure.
+pub struct GupConfig {
     #[serde(rename = "Default")]
     pub default: Option<String>,
     #[serde(rename = "InstalledVersions")]
-    pub installed_versions: HashMap<String, JuliaupConfigVersion>,
+    pub installed_versions: HashMap<String, GupConfigVersion>,
     #[serde(rename = "InstalledChannels")]
-    pub installed_channels: HashMap<String, JuliaupConfigChannel>,
+    pub installed_channels: HashMap<String, GupConfigChannel>,
     #[serde(rename = "Settings", default)]
-    pub settings: JuliaupConfigSettings,
+    pub settings: GupConfigSettings,
     #[serde(rename = "Overrides", default)]
-    pub overrides: Vec<JuliaupOverride>,
+    pub overrides: Vec<GupOverride>,
     #[serde(
         rename = "LastVersionDbUpdate",
         skip_serializing_if = "Option::is_none"
@@ -107,7 +112,8 @@ pub struct JuliaupConfig {
 
 #[cfg(feature = "selfupdate")]
 #[derive(Serialize, Deserialize, Clone)]
-pub struct JuliaupSelfConfig {
+/// Self-update configuration for GUP.
+pub struct GupSelfConfig {
     #[serde(
         rename = "BackgroundSelfUpdateInterval",
         skip_serializing_if = "Option::is_none"
@@ -120,37 +126,39 @@ pub struct JuliaupSelfConfig {
     pub startup_selfupdate_interval: Option<i64>,
     #[serde(rename = "ModifyPath", default, skip_serializing_if = "is_default")]
     pub modify_path: bool,
-    #[serde(rename = "JuliaupChannel", skip_serializing_if = "Option::is_none")]
-    pub juliaup_channel: Option<String>,
+    #[serde(rename = "GupChannel", skip_serializing_if = "Option::is_none")]
+    pub gup_channel: Option<String>,
     #[serde(rename = "LastSelfUpdate", skip_serializing_if = "Option::is_none")]
     pub last_selfupdate: Option<DateTime<Utc>>,
 }
 
-pub struct JuliaupConfigFile {
+/// Writable configuration file handle with locking.
+pub struct GupConfigFile {
     pub file: File,
     pub lock: FlockLock<File>,
-    pub data: JuliaupConfig,
+    pub data: GupConfig,
     #[cfg(feature = "selfupdate")]
     pub self_file: File,
     #[cfg(feature = "selfupdate")]
-    pub self_data: JuliaupSelfConfig,
+    pub self_data: GupSelfConfig,
 }
 
-pub struct JuliaupReadonlyConfigFile {
-    pub data: JuliaupConfig,
+/// Read-only configuration file handle.
+pub struct GupReadonlyConfigFile {
+    pub data: GupConfig,
     #[cfg(feature = "selfupdate")]
-    pub self_data: JuliaupSelfConfig,
+    pub self_data: GupSelfConfig,
 }
 
-pub fn get_read_lock(paths: &GlobalPaths) -> Result<FlockLock<File>> {
-    std::fs::create_dir_all(&paths.juliauphome)
-        .with_context(|| "Could not create juliaup home folder.")?;
+pub fn get_read_lock(paths: &GupGlobalPaths) -> Result<FlockLock<File>> {
+    std::fs::create_dir_all(paths.guphome()) // Use method
+        .with_context(|| "Could not create gup home folder.")?;
 
     let lock_file = match OpenOptions::new()
         .read(true)
         .write(true)
         .create(true)
-        .open(&paths.lockfile)
+        .open(paths.lock_file()) // Use method
     {
         Ok(file) => file,
         Err(e) => return Err(anyhow!("Could not create lockfile: {}.", e)),
@@ -160,7 +168,7 @@ pub fn get_read_lock(paths: &GlobalPaths) -> Result<FlockLock<File>> {
         Ok(lock) => lock,
         Err(e) => {
             eprintln!(
-                "Juliaup configuration is locked by another process, waiting for it to unlock."
+                "GUP configuration is locked by another process, waiting for it to unlock."
             );
 
             SharedFlock::wait_lock(e.into()).unwrap()
@@ -171,9 +179,9 @@ pub fn get_read_lock(paths: &GlobalPaths) -> Result<FlockLock<File>> {
 }
 
 pub fn load_config_db(
-    paths: &GlobalPaths,
+    paths: &GupGlobalPaths,
     existing_lock: Option<&FlockLock<File>>,
-) -> Result<JuliaupReadonlyConfigFile> {
+) -> Result<GupReadonlyConfigFile> {
     let mut file_lock: Option<FlockLock<File>> = None;
 
     if existing_lock.is_none() {
@@ -182,7 +190,7 @@ pub fn load_config_db(
 
     let v = match std::fs::OpenOptions::new()
         .read(true)
-        .open(&paths.juliaupconfig)
+        .open(paths.global_config_file()) // Use method
     {
         Ok(file) => {
             let reader = BufReader::new(&file);
@@ -190,17 +198,17 @@ pub fn load_config_db(
             serde_json::from_reader(reader).with_context(|| {
                 format!(
                     "Failed to parse configuration file '{:?}' for reading.",
-                    paths.juliaupconfig
+                    paths.global_config_file() // Use method
                 )
             })?
         }
         Err(error) => match error.kind() {
-            ErrorKind::NotFound => JuliaupConfig {
+            ErrorKind::NotFound => GupConfig {
                 default: None,
                 installed_versions: HashMap::new(),
                 installed_channels: HashMap::new(),
                 overrides: Vec::new(),
-                settings: JuliaupConfigSettings {
+                settings: GupConfigSettings {
                     create_channel_symlinks: false,
                     versionsdb_update_interval: default_versionsdb_update_interval(),
                 },
@@ -209,7 +217,7 @@ pub fn load_config_db(
             other_error => {
                 bail!(
                     "Problem opening the file {:?}: {:?}",
-                    paths.juliaupconfig,
+                    paths.global_config_file(), // Use method
                     other_error
                 )
             }
@@ -217,12 +225,12 @@ pub fn load_config_db(
     };
 
     #[cfg(feature = "selfupdate")]
-    let selfconfig: JuliaupSelfConfig;
+    let selfconfig: GupSelfConfig;
     #[cfg(feature = "selfupdate")]
     {
         selfconfig = match std::fs::OpenOptions::new()
             .read(true)
-            .open(&paths.juliaupselfconfig)
+            .open(paths.gupselfconfig_file()) // Use method
         {
             Ok(file) => {
                 let reader = BufReader::new(&file);
@@ -230,13 +238,13 @@ pub fn load_config_db(
                 serde_json::from_reader(reader).with_context(|| {
                     format!(
                         "Failed to parse self configuration file '{:?}' for reading.",
-                        paths.juliaupselfconfig
+                        paths.gupselfconfig_file() // Use method
                     )
                 })?
             }
             Err(error) => bail!(
                 "Could not open self configuration file {:?}: {:?}",
-                paths.juliaupselfconfig,
+                paths.gupselfconfig_file(), // Use method
                 error
             ),
         };
@@ -248,22 +256,23 @@ pub fn load_config_db(
             .with_context(|| "Failed to unlock configuration file.")?;
     }
 
-    Ok(JuliaupReadonlyConfigFile {
+    Ok(GupReadonlyConfigFile {
         data: v,
         #[cfg(feature = "selfupdate")]
         self_data: selfconfig,
     })
 }
 
-pub fn load_mut_config_db(paths: &GlobalPaths) -> Result<JuliaupConfigFile> {
-    std::fs::create_dir_all(&paths.juliauphome)
-        .with_context(|| "Could not create juliaup home folder.")?;
+/// Load a mutable configuration database with exclusive locking.
+pub fn load_mut_config_db(paths: &GupGlobalPaths) -> Result<GupConfigFile> {
+    std::fs::create_dir_all(paths.guphome()) // Use method
+        .with_context(|| "Could not create gup home folder.")?;
 
     let lock_file = match OpenOptions::new()
         .read(true)
         .write(true)
         .create(true)
-        .open(&paths.lockfile)
+        .open(paths.lock_file()) // Use method
     {
         Ok(file) => file,
         Err(e) => return Err(anyhow!("Could not create lockfile: {}.", e)),
@@ -273,7 +282,7 @@ pub fn load_mut_config_db(paths: &GlobalPaths) -> Result<JuliaupConfigFile> {
         Ok(lock) => lock,
         Err(e) => {
             eprintln!(
-                "Juliaup configuration is locked by another process, waiting for it to unlock."
+                "GUP configuration is locked by another process, waiting for it to unlock."
             );
 
             ExclusiveFlock::wait_lock(e.into()).unwrap()
@@ -284,8 +293,8 @@ pub fn load_mut_config_db(paths: &GlobalPaths) -> Result<JuliaupConfigFile> {
         .read(true)
         .write(true)
         .create(true)
-        .open(&paths.juliaupconfig)
-        .with_context(|| "Failed to open juliaup config file.")?;
+        .open(paths.global_config_file()) // Use method
+        .with_context(|| "Failed to open gup config file.")?;
 
     let stream_len = file
         .seek(SeekFrom::End(0))
@@ -293,12 +302,12 @@ pub fn load_mut_config_db(paths: &GlobalPaths) -> Result<JuliaupConfigFile> {
 
     let data = match stream_len {
         0 => {
-            let new_config = JuliaupConfig {
+            let new_config = GupConfig {
                 default: None,
                 installed_versions: HashMap::new(),
                 installed_channels: HashMap::new(),
                 overrides: Vec::new(),
-                settings: JuliaupConfigSettings {
+                settings: GupConfigSettings {
                     create_channel_symlinks: false,
                     versionsdb_update_interval: default_versionsdb_update_interval(),
                 },
@@ -328,28 +337,56 @@ pub fn load_mut_config_db(paths: &GlobalPaths) -> Result<JuliaupConfigFile> {
     };
 
     #[cfg(feature = "selfupdate")]
-    let self_file: File;
+    let mut self_file: File; // Made self_file mutable here
     #[cfg(feature = "selfupdate")]
-    let self_data: JuliaupSelfConfig;
+    let self_data: GupSelfConfig;
     #[cfg(feature = "selfupdate")]
     {
         self_file = std::fs::OpenOptions::new()
             .read(true)
             .write(true)
-            .open(&paths.juliaupselfconfig)
-            .with_context(|| "Failed to open juliaup config file.")?;
+            .create(true) // Ensure self_config_file is created if it doesn't exist
+            .open(paths.gupselfconfig_file()) // Use method
+            .with_context(|| "Failed to open gup self-config file.")?;
 
-        let reader = BufReader::new(&self_file);
+        // Handle empty or new self_config_file
+        let self_stream_len = self_file
+            .seek(SeekFrom::End(0))
+            .with_context(|| "Failed to determine length of self-config file.")?;
 
-        self_data = serde_json::from_reader(reader).with_context(|| {
-            format!(
-                "Failed to parse self configuration file '{:?}' for reading.",
-                paths.juliaupselfconfig
-            )
-        })?
+        self_data = if self_stream_len == 0 {
+            let new_self_config = GupSelfConfig {
+                // Provide default values
+                background_selfupdate_interval: None,
+                startup_selfupdate_interval: None,
+                modify_path: false,    // Default for modify_path
+                gup_channel: None,
+                last_selfupdate: None,
+            };
+            serde_json::to_writer_pretty(&self_file, &new_self_config)
+                .with_context(|| "Failed to write initial self-config file.")?;
+            self_file
+                .sync_all()
+                .with_context(|| "Failed to sync initial self-config data.")?;
+            self_file
+                .rewind()
+                .with_context(|| "Failed to rewind self-config after initial write.")?;
+            new_self_config
+        } else {
+            self_file
+                .rewind()
+                .with_context(|| "Failed to rewind existing self-config file.")?;
+            let reader = BufReader::new(&self_file);
+            serde_json::from_reader(reader).with_context(|| {
+                format!(
+                    "Failed to parse self configuration file '{:?}' for reading.",
+                    paths.gupselfconfig_file() // Use method
+                )
+            })?
+        };
     }
 
-    let result = JuliaupConfigFile {
+    let result = GupConfigFile {
         file,
         lock: file_lock,
         data,
@@ -362,43 +399,44 @@ pub fn load_mut_config_db(paths: &GlobalPaths) -> Result<JuliaupConfigFile> {
     Ok(result)
 }
 
-pub fn save_config_db(juliaup_config_file: &mut JuliaupConfigFile) -> Result<()> {
-    juliaup_config_file
+/// Save the configuration database to disk.
+pub fn save_config_db(gup_config_file: &mut GupConfigFile) -> Result<()> {
+    gup_config_file
         .file
         .rewind()
         .with_context(|| "Failed to rewind config file for write.")?;
 
-    juliaup_config_file
+    gup_config_file
         .file
         .set_len(0)
         .with_context(|| "Failed to set len to 0 for config file before writing new content.")?;
 
-    serde_json::to_writer_pretty(&juliaup_config_file.file, &juliaup_config_file.data)
+    serde_json::to_writer_pretty(&gup_config_file.file, &gup_config_file.data)
         .with_context(|| "Failed to write configuration file.")?;
 
-    juliaup_config_file
+    gup_config_file
         .file
         .sync_all()
         .with_context(|| "Failed to write config data to disc.")?;
 
     #[cfg(feature = "selfupdate")]
     {
-        juliaup_config_file
+        gup_config_file
             .self_file
             .rewind()
             .with_context(|| "Failed to rewind self config file for write.")?;
 
-        juliaup_config_file.self_file.set_len(0).with_context(|| {
+        gup_config_file.self_file.set_len(0).with_context(|| {
             "Failed to set len to 0 for self config file before writing new content."
         })?;
 
         serde_json::to_writer_pretty(
-            &juliaup_config_file.self_file,
-            &juliaup_config_file.self_data,
+            &gup_config_file.self_file,
+            &gup_config_file.self_data,
         )
         .with_context(|| format!("Failed to write self configuration file."))?;
 
-        juliaup_config_file
+        gup_config_file
             .self_file
             .sync_all()
             .with_context(|| "Failed to write config data to disc.")?;

@@ -2,23 +2,23 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 #[derive(Serialize, Deserialize)]
-pub struct JuliaupVersionDBVersion {
+pub struct VersionInfo {
     #[serde(rename = "UrlPath")]
     pub url_path: String,
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct JuliaupVersionDBChannel {
+pub struct ChannelInfo {
     #[serde(rename = "Version")]
     pub version: String,
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct JuliaupVersionDB {
+pub struct ProjectVersionsDB {
     #[serde(rename = "AvailableVersions")]
-    pub available_versions: HashMap<String, JuliaupVersionDBVersion>,
+    pub available_versions: HashMap<String, VersionInfo>,
     #[serde(rename = "AvailableChannels")]
-    pub available_channels: HashMap<String, JuliaupVersionDBChannel>,
-    #[serde(rename = "Version")]
-    pub version: String,
+    pub available_channels: HashMap<String, ChannelInfo>,
+    #[serde(rename = "Version")] // This serde rename refers to the JSON field name
+    pub db_format_version: String, // Renamed field in Rust struct
 }

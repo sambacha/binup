@@ -1,113 +1,133 @@
-use crate::config_file::{load_mut_config_db, save_config_db, JuliaupConfigChannel};
-use crate::global_paths::GlobalPaths;
-#[cfg(not(windows))]
-use crate::operations::create_symlink;
-use crate::operations::{
-    channel_to_name, install_non_db_version, install_version, update_version_db,
-};
-use crate::versions_file::load_versions_db;
-use anyhow::{anyhow, Context, Result};
-use regex::Regex;
+use crate::error_handling::GupError;
+use crate::global_config_manager::load_global_config;
+use crate::global_paths::GupGlobalPaths;
+use crate::operations_install::install_version;
+use crate::operations_metadata::{resolve_channel_to_version, sync_project_metadata};
+use crate::project_state_manager::{load_project_local_state, save_project_local_state};
+use crate::state_config::ActiveChannelInfo;
+use anyhow::{bail, Context, Result};
+use chrono::Utc;
+use console::style;
 
-pub fn run_command_add(channel: &str, paths: &GlobalPaths) -> Result<()> {
-    // This regex is dynamically compiled, but its runtime is negligible compared to downloading Julia
-    if Regex::new(r"^(?:pr\d+|nightly|\d+\.\d+-nightly)(?:~|$)")
-        .unwrap()
-        .is_match(channel)
-    {
-        return add_non_db(channel, paths);
-    }
-
-    update_version_db(paths).with_context(|| "Failed to update versions db.")?;
-    let version_db =
-        load_versions_db(paths).with_context(|| "`add` command failed to load versions db.")?;
-
-    let required_version = &version_db
-        .available_channels
-        .get(channel)
-        .ok_or_else(|| {
-            anyhow!(
-                "'{}' is not a valid Julia version or channel name.",
-                &channel
-            )
-        })?
-        .version;
-
-    let mut config_file = load_mut_config_db(paths)
-        .with_context(|| "`add` command failed to load configuration data.")?;
-
-    if config_file.data.installed_channels.contains_key(channel) {
-        eprintln!("'{}' is already installed.", &channel);
-        return Ok(());
-    }
-
-    install_version(required_version, &mut config_file.data, &version_db, paths)?;
-
-    config_file.data.installed_channels.insert(
-        channel.to_string(),
-        JuliaupConfigChannel::SystemChannel {
-            version: required_version.clone(),
-        },
+pub fn run_command_add(
+    project_name: &str,
+    version_or_channel_to_add: &str,
+    paths: &GupGlobalPaths,
+) -> Result<()> {
+    eprintln!(
+        "{} version/channel '{}' for project {}.",
+        style("Adding").cyan().bold(),
+        version_or_channel_to_add,
+        project_name
     );
 
-    if config_file.data.default.is_none() {
-        config_file.data.default = Some(channel.to_string());
-    }
+    // 1. Load GupGlobalConfig to find project's source_of_truth_url
+    let global_config = load_global_config(paths)?;
+    let project_info = global_config
+        .managed_projects
+        .get(project_name)
+        .ok_or_else(|| GupError::project_not_found(project_name))?;
 
-    #[cfg(not(windows))]
-    let create_symlinks = config_file.data.settings.create_channel_symlinks;
-
-    save_config_db(&mut config_file).with_context(|| {
+    // 2. Load/Sync ProjectMetadata for `project_name`
+    let source_url = url::Url::parse(&project_info.source_of_truth_url).with_context(|| {
         format!(
-            "Failed to save configuration file from `add` command after '{}' was installed.",
-            channel
+            "Failed to parse source_of_truth_url: '{}'",
+            project_info.source_of_truth_url
         )
     })?;
+    let project_metadata = sync_project_metadata(project_name, &source_url, paths)?;
 
-    #[cfg(not(windows))]
-    if create_symlinks {
-        create_symlink(
-            &JuliaupConfigChannel::SystemChannel {
-                version: required_version.clone(),
-            },
-            &format!("julia-{}", channel),
-            paths,
-        )?;
+    // 3. Load ProjectLocalState for `project_name`
+    let mut project_state = load_project_local_state(project_name, paths)?;
+
+    // 4. Resolve version_or_channel_to_add to a concrete version string
+    let concrete_version_to_install: String;
+    let mut is_channel_installation = false;
+
+    if project_metadata
+        .channels
+        .contains_key(version_or_channel_to_add)
+    {
+        is_channel_installation = true;
+        concrete_version_to_install =
+            resolve_channel_to_version(version_or_channel_to_add, &project_metadata)?;
+        eprintln!(
+            "  Channel '{}' resolved to version '{}'.",
+            style(version_or_channel_to_add).green(),
+            style(&concrete_version_to_install).green()
+        );
+    } else if project_metadata
+        .available_versions
+        .contains_key(version_or_channel_to_add)
+    {
+        concrete_version_to_install = version_or_channel_to_add.to_string();
+    } else {
+        bail!(
+            "'{}' is not a valid version or channel for project '{}'.",
+            version_or_channel_to_add,
+            project_name
+        );
     }
 
-    Ok(())
-}
+    // 5. Call operations_install::install_version (handles already installed check internally)
+    install_version(
+        project_name,
+        &concrete_version_to_install,
+        &project_metadata,
+        &mut project_state,
+        paths,
+    )?;
 
-fn add_non_db(channel: &str, paths: &GlobalPaths) -> Result<()> {
-    let mut config_file = load_mut_config_db(paths)
-        .with_context(|| "`add` command failed to load configuration data.")?;
+    // 6. Update ProjectLocalState
+    if is_channel_installation {
+        project_state.active_channels.insert(
+            version_or_channel_to_add.to_string(),
+            ActiveChannelInfo {
+                resolved_version: concrete_version_to_install.clone(),
+                last_checked: Utc::now(),
+            },
+        );
+    }
 
-    if config_file.data.installed_channels.contains_key(channel) {
-        eprintln!("'{}' is already installed.", &channel);
+    // If no default is set, make this the default
+    if project_state.default_version_or_channel_name.is_none() {
+        eprintln!(
+            "  No default version set for project '{}'. Setting '{}' as default.",
+            project_name,
+            style(version_or_channel_to_add).green()
+        );
+        project_state.default_version_or_channel_name = Some(version_or_channel_to_add.to_string());
+
+        // Save state first, then update symlinks
+        save_project_local_state(project_name, &project_state, paths)?;
+
+        // Update symlinks for the new default
+        use crate::operations_symlink::update_default_symlinks_for_project;
+        update_default_symlinks_for_project(project_name, paths).with_context(|| {
+            format!(
+                "Failed to update default symlinks for project '{}'",
+                project_name
+            )
+        })?;
+
+        eprintln!(
+            "{} version/channel '{}' for project {}.",
+            style("Successfully added").green().bold(),
+            version_or_channel_to_add,
+            project_name
+        );
         return Ok(());
     }
 
-    let name = channel_to_name(&channel.to_string())?;
-    let config_channel = install_non_db_version(channel, &name, paths)?;
+    // 7. Save ProjectLocalState
+    save_project_local_state(project_name, &project_state, paths)?;
 
-    config_file
-        .data
-        .installed_channels
-        .insert(channel.to_string(), config_channel.clone());
+    eprintln!(
+        "{} version/channel '{}' for project {}.",
+        style("Successfully added").green().bold(),
+        version_or_channel_to_add,
+        project_name
+    );
 
-    if config_file.data.default.is_none() {
-        config_file.data.default = Some(channel.to_string());
-    }
-
-    save_config_db(&mut config_file).with_context(|| {
-        format!(
-            "Failed to save configuration file from `add` command after '{channel}' was installed.",
-        )
-    })?;
-
-    #[cfg(not(windows))]
-    if config_file.data.settings.create_channel_symlinks {
-        create_symlink(&config_channel, &format!("julia-{}", channel), paths)?;
-    }
     Ok(())
 }

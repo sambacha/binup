@@ -413,7 +413,7 @@
         //
         // The notes must be provided on one line, but it is possible to specify multiline notes using "\r\n".
         // Ex: "notesForCertification": "These\r\nare\r\nfour\r\nlines"
-        "notesForCertification": "This will eventually become the main distribution mechanism for the Julia programming language on Windows: www.julialang.org."
+        "notesForCertification": "GUP is a generic updater and installer program for managing software versions across multiple projects. It provides a universal version management system for any software package."
     }
 }
 

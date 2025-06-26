@@ -11,10 +11,10 @@
   xmlns:desktop6="http://schemas.microsoft.com/appx/manifest/desktop/windows10/6"
   xmlns:iot2="http://schemas.microsoft.com/appx/manifest/iot/windows10/2" IgnorableNamespaces="mp uap uap3 uap5 rescap desktop desktop4 desktop6 iot2">
 
-  <Identity Name="JuliaComputingInc.Julia" Publisher="{{{IdentityPublisher}}}" Version="{{ Version }}.0" ProcessorArchitecture="{{ ProcessorArchitecture }}"/>
+  <Identity Name="GupProject.GUP" Publisher="{{{IdentityPublisher}}}" Version="{{ Version }}.0" ProcessorArchitecture="{{ ProcessorArchitecture }}"/>
 
   <Properties>
-    <DisplayName>Julia</DisplayName>
+    <DisplayName>GUP</DisplayName>
     <PublisherDisplayName>{{{PublisherDisplayName}}}</PublisherDisplayName>
     <Logo>Images\StoreLogo.png</Logo>
     <desktop6:FileSystemWriteVirtualization>disabled</desktop6:FileSystemWriteVirtualization>
@@ -32,16 +32,16 @@
   </Resources>
 
   <Applications>
-    <Application Id="Julia" Executable="Julia\julialauncher.exe" EntryPoint="Windows.FullTrustApplication">
+    <Application Id="GUP" Executable="GUP\gup_bootstrap.exe" EntryPoint="Windows.FullTrustApplication">
       <uap:VisualElements
-        DisplayName="Julia"
-        Description="Julia is a high-level, high-performance, dynamic programming language"
+        DisplayName="GUP"
+        Description="GUP is a generic updater and installer program for managing software versions"
         BackgroundColor="transparent"
         Square150x150Logo="Images\Square150x150Logo.png"
         Square44x44Logo="Images\Square44x44Logo.png">
         <uap:DefaultTile
           Wide310x150Logo="Images\Wide310x150Logo.png"
-          ShortName="Julia"
+          ShortName="GUP"
           Square71x71Logo="Images\SmallTile.png"
           Square310x310Logo="Images\LargeTile.png">
           <uap:ShowNameOnTiles>
@@ -53,28 +53,28 @@
         <uap:SplashScreen Image="Images\SplashScreen.png" />
       </uap:VisualElements>
       <Extensions>
-        <uap3:Extension Category="windows.appExecutionAlias" Executable="Julia/julialauncher.exe" EntryPoint="Windows.FullTrustApplication">
+        <uap3:Extension Category="windows.appExecutionAlias" Executable="GUP/gup_bootstrap.exe" EntryPoint="Windows.FullTrustApplication">
           <uap3:AppExecutionAlias>
-            <desktop:ExecutionAlias Alias="julia.exe" />
+            <desktop:ExecutionAlias Alias="gup.exe" />
           </uap3:AppExecutionAlias>
         </uap3:Extension>
         <uap3:Extension Category="windows.appExtension">
-          <uap3:AppExtension Name="com.microsoft.windows.terminal.settings" Id="Julia" PublicFolder="Public" DisplayName="Julia">
+          <uap3:AppExtension Name="com.microsoft.windows.terminal.settings" Id="GUP" PublicFolder="Public" DisplayName="GUP">
           </uap3:AppExtension>
         </uap3:Extension>
       </Extensions>
     </Application>
-    <Application Id="Juliaup" Executable="Julia\juliaup.exe" EntryPoint="Windows.FullTrustApplication">
+    <Application Id="GupCli" Executable="GUP\gup.exe" EntryPoint="Windows.FullTrustApplication">
       <uap:VisualElements
-        DisplayName="Juliaup"
-        Description="Julia version management"
+        DisplayName="GUP CLI"
+        Description="Generic version management tool"
         BackgroundColor="transparent"
         Square150x150Logo="Images\Square150x150Logo.png"
         Square44x44Logo="Images\Square44x44Logo.png"
         AppListEntry="none">
         <uap:DefaultTile
           Wide310x150Logo="Images\Wide310x150Logo.png"
-          ShortName="Julia"
+          ShortName="GUP"
           Square71x71Logo="Images\SmallTile.png"
           Square310x310Logo="Images\LargeTile.png">
           <uap:ShowNameOnTiles>
@@ -86,9 +86,9 @@
         <uap:SplashScreen Image="Images\SplashScreen.png" />
       </uap:VisualElements>
       <Extensions>
-        <uap3:Extension Category="windows.appExecutionAlias" Executable="Julia/juliaup.exe" EntryPoint="Windows.FullTrustApplication">
+        <uap3:Extension Category="windows.appExecutionAlias" Executable="GUP/gup.exe" EntryPoint="Windows.FullTrustApplication">
           <uap3:AppExecutionAlias>
-            <desktop:ExecutionAlias Alias="juliaup.exe" />
+            <desktop:ExecutionAlias Alias="gup.exe" />
           </uap3:AppExecutionAlias>
         </uap3:Extension>
       </Extensions>

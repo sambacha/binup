@@ -5,10 +5,10 @@ use anyhow::Result;
 pub fn run_command_config_symlinks(
     value: Option<bool>,
     quiet: bool,
-    paths: &crate::global_paths::GlobalPaths,
+    paths: &crate::global_paths::GupGlobalPaths,
 ) -> Result<()> {
     use crate::config_file::{load_config_db, load_mut_config_db, save_config_db};
-    use crate::operations::{create_symlink, remove_symlink};
+    use crate::operations_symlink::{create_executable_symlink, remove_executable_symlink}; // Updated path
     use anyhow::Context;
 
     match value {
@@ -24,9 +24,13 @@ pub fn run_command_config_symlinks(
 
                 for (channel_name, channel) in &config_file.data.installed_channels {
                     if value {
-                        create_symlink(channel, &format!("julia-{}", channel_name), paths)?;
+                        // TODO: Channel-specific symlinks need project context
+                        // For now, create generic channel symlinks
+                        create_symlink(channel, &format!("gup-{}", channel_name), paths)?;
                     } else {
-                        remove_symlink(&format!("julia-{}", channel_name))?;
+                        // TODO: Channel-specific symlinks need project context
+                        // For now, remove generic channel symlinks
+                        remove_symlink(&format!("gup-{}", channel_name))?;
                     }
                 }
             }

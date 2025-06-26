@@ -1,0 +1,220 @@
+name: Fast Test Suite
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  RUST_BACKTRACE: 1
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  CARGO_NET_RETRY: 10
+  RUSTUP_MAX_RETRIES: 10
+
+jobs:
+  # Quick sanity check - fail fast on basic issues
+  sanity-check:
+    name: Sanity Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # For proper diff detection
+      
+      - name: Check for large files
+        run: |
+          large_files=$(find . -type f -size +1M -not -path "./.git/*" -not -path "./target/*" || true)
+          if [ -n "$large_files" ]; then
+            echo "❌ Large files detected (>1MB):"
+            echo "$large_files"
+            exit 1
+          fi
+      
+      - name: Check for merge conflicts
+        run: |
+          if grep -r "^<<<<<<< \|^======= \|^>>>>>>> " . --exclude-dir=.git; then
+            echo "❌ Merge conflict markers detected"
+            exit 1
+          fi
+
+  # Fast unit tests on Linux only
+  unit-tests:
+    name: Unit Tests (Linux)
+    runs-on: ubuntu-latest
+    needs: sanity-check
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      
+      - name: Cache setup
+        uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: v0-rust
+          shared-key: fast-test
+      
+      - name: Fast format check
+        run: cargo fmt --all -- --check
+      
+      - name: Fast clippy check (no deps)
+        run: cargo clippy --no-deps -- -D warnings
+      
+      - name: Build check (no default features)
+        run: cargo check --no-default-features
+      
+      - name: Run unit tests only
+        run: |
+          cargo test --lib --bins -- --test-threads=4
+      
+      - name: Test timing summary
+        if: always()
+        run: |
+          echo "## Test Performance" >> $GITHUB_STEP_SUMMARY
+          echo "Unit tests completed in ${SECONDS}s" >> $GITHUB_STEP_SUMMARY
+
+  # Run doc tests separately for better parallelization
+  doc-tests:
+    name: Documentation Tests
+    runs-on: ubuntu-latest
+    needs: sanity-check
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Cache setup
+        uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: v0-rust
+          shared-key: doc-test
+      
+      - name: Run doc tests
+        run: cargo test --doc
+      
+      - name: Check doc links
+        run: |
+          cargo doc --no-deps --all-features
+          cargo doc --no-deps --no-default-features
+        env:
+          RUSTDOCFLAGS: -D warnings
+
+  # Integration tests - run only the most critical ones
+  critical-integration-tests:
+    name: Critical Integration Tests
+    runs-on: ${{ matrix.os }}
+    needs: unit-tests
+    strategy:
+      fail-fast: true
+      matrix:
+        os: [ubuntu-latest]
+        test: [
+          "config_commands_tests",
+          "multiplexer_tests",
+          "gup_integration_test"
+        ]
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Cache setup
+        uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: v0-rust
+          shared-key: integration-${{ matrix.os }}
+      
+      - name: Run test
+        run: cargo test --test ${{ matrix.test }} -- --test-threads=2
+      
+      - name: Store test duration
+        if: always()
+        run: echo "${{ matrix.test }} completed in ${SECONDS}s" >> test_durations.txt
+      
+      - name: Upload test durations
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-durations-${{ matrix.test }}
+          path: test_durations.txt
+          retention-days: 1
+
+  # Platform smoke tests - minimal testing on other platforms
+  platform-smoke-test:
+    name: Platform Smoke Test
+    runs-on: ${{ matrix.os }}
+    needs: unit-tests
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+          - os: macos-latest
+            target: x86_64-apple-darwin
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      
+      - name: Cache setup
+        uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: v0-rust
+          shared-key: smoke-${{ matrix.target }}
+      
+      - name: Build check
+        run: cargo check --target ${{ matrix.target }}
+      
+      - name: Run minimal test
+        run: cargo test --target ${{ matrix.target }} --test gup_integration_test
+
+  # Performance report
+  performance-summary:
+    name: Performance Summary
+    runs-on: ubuntu-latest
+    needs: [unit-tests, doc-tests, critical-integration-tests, platform-smoke-test]
+    if: always()
+    steps:
+      - name: Download test durations
+        uses: actions/download-artifact@v4
+        with:
+          pattern: test-durations-*
+          merge-multiple: true
+      
+      - name: Generate summary
+        run: |
+          echo "## Test Suite Performance Report 📊" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Test | Status | Duration |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|--------|----------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Unit Tests | ${{ needs.unit-tests.result }} | Fast |" >> $GITHUB_STEP_SUMMARY
+          echo "| Doc Tests | ${{ needs.doc-tests.result }} | Fast |" >> $GITHUB_STEP_SUMMARY
+          echo "| Integration Tests | ${{ needs.critical-integration-tests.result }} | Normal |" >> $GITHUB_STEP_SUMMARY
+          echo "| Platform Tests | ${{ needs.platform-smoke-test.result }} | Normal |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ -f test_durations.txt ]; then
+            echo "### Detailed Timings" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            cat test_durations.txt >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          # Fail if any critical job failed
+          if [ "${{ needs.unit-tests.result }}" != "success" ] || \
+             [ "${{ needs.critical-integration-tests.result }}" != "success" ]; then
+            exit 1
+          fi

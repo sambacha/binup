@@ -4,7 +4,7 @@ use anyhow::{bail, Context, Result};
 pub fn run_command_config_versionsdbupdate(
     value: Option<i64>,
     quiet: bool,
-    paths: &crate::global_paths::GlobalPaths,
+    paths: &crate::global_paths::GupGlobalPaths,
 ) -> Result<()> {
     match value {
         Some(value) => {

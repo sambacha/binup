@@ -1,49 +1,5 @@
 use anyhow::{anyhow, bail, Context, Result};
-use semver::{BuildMetadata, Version};
 use std::path::PathBuf;
-use url::Url;
-
-pub fn get_juliaserver_base_url() -> Result<Url> {
-    let base_url = if let Ok(val) = std::env::var("JULIAUP_SERVER") {
-        if val.ends_with('/') {
-            val
-        } else {
-            format!("{}/", val)
-        }
-    } else {
-        "https://julialang-s3.julialang.org".to_string()
-    };
-
-    let parsed_url = Url::parse(&base_url).with_context(|| {
-        format!(
-            "Failed to parse the value of JULIAUP_SERVER '{}' as a uri.",
-            base_url
-        )
-    })?;
-
-    Ok(parsed_url)
-}
-
-pub fn get_julianightlies_base_url() -> Result<Url> {
-    let base_url = if let Ok(val) = std::env::var("JULIAUP_NIGHTLY_SERVER") {
-        if val.ends_with('/') {
-            val
-        } else {
-            format!("{}/", val)
-        }
-    } else {
-        "https://julialangnightlies-s3.julialang.org".to_string()
-    };
-
-    let parsed_url = Url::parse(&base_url).with_context(|| {
-        format!(
-            "Failed to parse the value of JULIAUP_NIGHTLY_SERVER '{}' as a uri.",
-            base_url
-        )
-    })?;
-
-    Ok(parsed_url)
-}
 
 pub fn get_bin_dir() -> Result<PathBuf> {
     let entry_sep = if std::env::consts::OS == "windows" {
@@ -52,12 +8,12 @@ pub fn get_bin_dir() -> Result<PathBuf> {
         ':'
     };
 
-    let path = match std::env::var("JULIAUP_BIN_DIR") {
+    let path = match std::env::var("GUP_BIN_DIR") {
         Ok(val) => {
             let path = PathBuf::from(val.split(entry_sep).next().unwrap()); // We can unwrap here because even when we split an empty string we should get a first element.
 
             if !path.is_absolute() {
-                bail!("The `JULIAUP_BIN_DIR` environment variable contains a value that resolves to an an invalid path `{}`.", path.display());
+                bail!("The `GUP_BIN_DIR` environment variable contains a value that resolves to an an invalid path `{}`.", path.display());
             };
 
             path
@@ -69,7 +25,12 @@ pub fn get_bin_dir() -> Result<PathBuf> {
                 .ok_or_else(|| anyhow!("Could not determine parent."))?
                 .to_path_buf();
 
-            if let Some(home_dir) = dirs::home_dir() {
+            let home_dir = std::env::var("HOME")
+                .ok()
+                .map(PathBuf::from)
+                .or_else(|| user_dirs::home_dir().ok());
+
+            if let Some(home_dir) = home_dir {
                 if !path.starts_with(&home_dir) {
                     path = home_dir.join(".local").join("bin");
 
@@ -89,19 +50,11 @@ pub fn get_bin_dir() -> Result<PathBuf> {
     Ok(path)
 }
 
-pub fn is_valid_julia_path(julia_path: &PathBuf) -> bool {
-    return std::process::Command::new(julia_path)
-        .arg("-v")
-        .stdout(std::process::Stdio::null())
-        .spawn()
-        .is_ok();
-}
-
 pub fn get_arch() -> Result<String> {
     if std::env::consts::ARCH == "x86" {
         return Ok("x86".to_string());
     } else if std::env::consts::ARCH == "x86_64" {
-        return Ok("x64".to_string());
+        return Ok("x86_64".to_string());
     } else if std::env::consts::ARCH == "aarch64" {
         return Ok("aarch64".to_string());
     }
@@ -109,29 +62,43 @@ pub fn get_arch() -> Result<String> {
     bail!("Running on an unknown arch: {}.", std::env::consts::ARCH)
 }
 
-pub fn parse_versionstring(value: &String) -> Result<(String, Version)> {
-    let version = Version::parse(value).unwrap();
-
-    let build_parts: Vec<&str> = version.build.split('.').collect();
-
-    if build_parts.len() != 4 {
-        bail!(
-            "`{}` is an invalid version specifier: the build part must have four parts.",
-            value
-        );
-    }
-
-    let version_without_build = semver::Version {
-        major: version.major,
-        minor: version.minor,
-        patch: version.patch,
-        pre: version.pre,
-        build: BuildMetadata::EMPTY,
+/// Returns a platform identifier string like "x86_64-pc-windows-msvc" or "aarch64-apple-darwin".
+///
+/// This attempts to be specific for common variations like MUSL libc on Linux or GNU toolchain on Windows.
+/// The exact identifiers used will need to align with what `installer-metadata.json` provides.
+pub fn get_target_triple_id() -> Result<String> {
+    let arch = match std::env::consts::ARCH {
+        "x86" => "i686",
+        "x86_64" => "x86_64",
+        "arm" => "arm", // Note: Further distinction for ARM variants (e.g., armv7, armhf) might be needed if projects require it.
+        "aarch64" => "aarch64",
+        other => bail!("Unsupported architecture: {}", other),
     };
 
-    let platform = build_parts[1];
+    let os_env = match std::env::consts::OS {
+        "linux" => {
+            if cfg!(target_env = "musl") {
+                "unknown-linux-musl"
+            } else {
+                // Default to gnu for linux if not musl.
+                // Other envs like android (ndk) could be added if needed.
+                "unknown-linux-gnu"
+            }
+        }
+        "macos" => "apple-darwin",
+        "windows" => {
+            if cfg!(target_env = "gnu") {
+                "pc-windows-gnu"
+            } else {
+                // Default to msvc for windows if not gnu.
+                "pc-windows-msvc"
+            }
+        }
+        "freebsd" => "unknown-freebsd",
+        other => bail!("Unsupported OS: {}", other),
+    };
 
-    Ok((platform.to_string(), version_without_build))
+    Ok(format!("{}-{}", arch, os_env))
 }
 
 #[cfg(test)]
@@ -139,18 +106,47 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_parse_versionstring() {
-        let s = "1.1.1";
-        assert!(parse_versionstring(&s.to_owned()).is_err());
+    fn test_get_target_triple_id() {
+        // This test is environment dependent, but we can check if it produces a non-empty string
+        // and matches a general pattern based on compile-time cfgs.
+        let triple_result = get_target_triple_id();
+        assert!(triple_result.is_ok());
+        let triple_str = triple_result.unwrap();
+        assert!(!triple_str.is_empty());
+        println!("Detected target triple: {}", triple_str); // Useful for seeing what it detects
 
-        let s = "1.1.1+0.x86.apple.darwin14";
-        let (p, v) = parse_versionstring(&s.to_owned()).unwrap();
-        assert_eq!(p, "x86");
-        assert_eq!(v, Version::new(1, 1, 1));
-
-        let s = "1.1.1+0.x64.apple.darwin14";
-        let (p, v) = parse_versionstring(&s.to_owned()).unwrap();
-        assert_eq!(p, "x64");
-        assert_eq!(v, Version::new(1, 1, 1));
+        // Example checks based on common platforms and environments.
+        // Note: Testing all variants (e.g., linux-musl vs linux-gnu) in a single test run
+        // is tricky as `target_env` is a compile-time configuration.
+        // These checks verify the logic for the environment the tests are compiled in.
+        if cfg!(all(
+            target_arch = "x86_64",
+            target_os = "linux",
+            target_env = "gnu"
+        )) {
+            assert_eq!(triple_str, "x86_64-unknown-linux-gnu");
+        } else if cfg!(all(
+            target_arch = "x86_64",
+            target_os = "linux",
+            target_env = "musl"
+        )) {
+            assert_eq!(triple_str, "x86_64-unknown-linux-musl");
+        } else if cfg!(all(target_arch = "aarch64", target_os = "macos")) {
+            // macos typically implies darwin env
+            assert_eq!(triple_str, "aarch64-apple-darwin");
+        } else if cfg!(all(
+            target_arch = "x86_64",
+            target_os = "windows",
+            target_env = "msvc"
+        )) {
+            assert_eq!(triple_str, "x86_64-pc-windows-msvc");
+        } else if cfg!(all(
+            target_arch = "x86_64",
+            target_os = "windows",
+            target_env = "gnu"
+        )) {
+            assert_eq!(triple_str, "x86_64-pc-windows-gnu");
+        }
+        // Add more specific checks if running tests in diverse environments.
     }
 }

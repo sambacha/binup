@@ -1,0 +1,120 @@
+{
+  "project_name": "deno",
+  "display_name": "Deno",
+  "description": "A modern runtime for JavaScript and TypeScript",
+  "homepage_url": "https://deno.land",
+  "metadata_format_version": "1.0.0",
+  "base_download_url": "https://github.com/denoland/deno/releases/download/",
+  "platforms": {
+    "win-x64": {
+      "os": "windows",
+      "arch": "x86_64", 
+      "target_triple_pattern": "x86_64.*windows.*"
+    },
+    "darwin-x64": {
+      "os": "macos",
+      "arch": "x86_64",
+      "target_triple_pattern": "x86_64.*darwin.*"
+    },
+    "darwin-arm64": {
+      "os": "macos",
+      "arch": "aarch64",
+      "target_triple_pattern": "aarch64.*darwin.*"
+    },
+    "linux-x64": {
+      "os": "linux",
+      "arch": "x86_64",
+      "target_triple_pattern": "x86_64.*linux.*"
+    }
+  },
+  "default_install_config": {
+    "archive_format": "zip",
+    "strip_components": 0,
+    "bin_subdir": ""
+  },
+  "executables": [
+    {
+      "name": "deno",
+      "path_in_bin_subdir": "deno"
+    }
+  ],
+  "default_executable_name": "deno",
+  "available_versions": {
+    "1.45.5": {
+      "release_date": "2024-07-31T16:00:00Z",
+      "artifacts": {
+        "win-x64": {
+          "url_path_suffix": "v1.45.5/deno-x86_64-pc-windows-msvc.zip",
+          "sha256": "example1234567890abcdef"
+        },
+        "darwin-x64": {
+          "url_path_suffix": "v1.45.5/deno-x86_64-apple-darwin.zip", 
+          "sha256": "exampleabcdef1234567890"
+        },
+        "darwin-arm64": {
+          "url_path_suffix": "v1.45.5/deno-aarch64-apple-darwin.zip",
+          "sha256": "examplefedcba0987654321"
+        },
+        "linux-x64": {
+          "url_path_suffix": "v1.45.5/deno-x86_64-unknown-linux-gnu.zip",
+          "sha256": "example9876543210fedcba"
+        }
+      }
+    },
+    "1.44.4": {
+      "release_date": "2024-06-19T16:00:00Z",
+      "artifacts": {
+        "win-x64": {
+          "url_path_suffix": "v1.44.4/deno-x86_64-pc-windows-msvc.zip",
+          "sha256": "example5678901234abcdef"
+        },
+        "darwin-x64": {
+          "url_path_suffix": "v1.44.4/deno-x86_64-apple-darwin.zip",
+          "sha256": "examplecdef567890123abc"
+        },
+        "darwin-arm64": {
+          "url_path_suffix": "v1.44.4/deno-aarch64-apple-darwin.zip", 
+          "sha256": "exampleba0987654321fedc"
+        },
+        "linux-x64": {
+          "url_path_suffix": "v1.44.4/deno-x86_64-unknown-linux-gnu.zip",
+          "sha256": "example6543210fedcba098"
+        }
+      }
+    },
+    "1.46.0": {
+      "release_date": "2024-08-22T16:00:00Z",
+      "artifacts": {
+        "win-x64": {
+          "url_path_suffix": "v1.46.0/deno-x86_64-pc-windows-msvc.zip",
+          "sha256": "exampleaaaa1111bbbb2222"
+        },
+        "darwin-x64": {
+          "url_path_suffix": "v1.46.0/deno-x86_64-apple-darwin.zip",
+          "sha256": "example2222bbbb1111aaaa"
+        },
+        "darwin-arm64": {
+          "url_path_suffix": "v1.46.0/deno-aarch64-apple-darwin.zip",
+          "sha256": "examplecccc3333dddd4444"
+        },
+        "linux-x64": {
+          "url_path_suffix": "v1.46.0/deno-x86_64-unknown-linux-gnu.zip", 
+          "sha256": "example4444dddd3333cccc"
+        }
+      }
+    }
+  },
+  "channels": {
+    "stable": {
+      "resolution_strategy": "latest_semver"
+    },
+    "v1.45": {
+      "version_prefix": "1.45.",
+      "resolution_strategy": "latest_semver"
+    },
+    "v1.44": {
+      "version_prefix": "1.44.",
+      "resolution_strategy": "latest_semver"
+    }
+  }
+}

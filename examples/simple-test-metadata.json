@@ -1,0 +1,61 @@
+{
+  "project_name": "simple-test",
+  "display_name": "Simple Test Project",
+  "description": "A minimal test project for gup validation",
+  "homepage_url": "https://example.com/simple-test",
+  "metadata_format_version": "1.0.0",
+  "base_download_url": "https://httpbin.org/",
+  "platforms": {
+    "linux-x64": {
+      "os": "linux",
+      "arch": "x86_64",
+      "target_triple_pattern": "x86_64.*linux.*"
+    },
+    "darwin-x64": {
+      "os": "macos", 
+      "arch": "x86_64",
+      "target_triple_pattern": "x86_64.*darwin.*"
+    },
+    "darwin-arm64": {
+      "os": "macos",
+      "arch": "aarch64", 
+      "target_triple_pattern": "aarch64.*darwin.*"
+    }
+  },
+  "default_install_config": {
+    "archive_format": "binary",
+    "strip_components": 0,
+    "bin_subdir": ""
+  },
+  "executables": [
+    {
+      "name": "simple-test",
+      "path_in_bin_subdir": "simple-test"
+    }
+  ],
+  "default_executable_name": "simple-test",
+  "available_versions": {
+    "1.0.0": {
+      "release_date": "2024-01-01T00:00:00Z",
+      "artifacts": {
+        "linux-x64": {
+          "url_path_suffix": "status/200",
+          "sha256": "example1234567890abcdef"
+        },
+        "darwin-x64": {
+          "url_path_suffix": "status/200", 
+          "sha256": "exampleabcdef1234567890"
+        },
+        "darwin-arm64": {
+          "url_path_suffix": "status/200",
+          "sha256": "examplefedcba0987654321"
+        }
+      }
+    }
+  },
+  "channels": {
+    "stable": {
+      "resolution_strategy": "latest_semver"
+    }
+  }
+}

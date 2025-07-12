@@ -1,132 +1,123 @@
 #[cfg(feature = "selfupdate")]
-use anyhow::Result;
+use crate::{cli::CiContext, global_paths::GupGlobalPaths};
+#[cfg(feature = "selfupdate")]
+use anyhow::Result; // Renamed
 
 #[cfg(feature = "selfupdate")]
-pub fn run_command_selfuninstall(paths: &crate::global_paths::GlobalPaths) -> Result<()> {
+pub fn run_command_selfuninstall(paths: &GupGlobalPaths) -> Result<()> {
     use dialoguer::Confirm;
-
+    // These command imports will need to point to the gup versions
     use crate::{
         command_config_backgroundselfupdate::run_command_config_backgroundselfupdate,
         command_config_modifypath::run_command_config_modifypath,
         command_config_startupselfupdate::run_command_config_startupselfupdate,
-        command_config_symlinks::run_command_config_symlinks,
+        // command_config_symlinks::run_command_config_symlinks, // This is Julia-specific
     };
 
-    let choice = Confirm::new()
-        .with_prompt("Do you really want to uninstall Julia?")
-        .default(false)
-        .interact()?;
+    // Check CI context to determine if prompts should be shown
+    let ci_context = CiContext::detect();
+    let choice = if ci_context.should_prompt() {
+        Confirm::new()
+            .with_prompt("Do you really want to uninstall gup and all managed projects?") // Updated prompt
+            .default(false)
+            .interact()?
+    } else {
+        // In CI mode, require explicit confirmation via environment variable
+        std::env::var("GUP_FORCE").is_ok()
+    };
 
     if !choice {
         return Ok(());
     }
 
-    eprint!("Removing background self update task.");
+    eprint!("Removing background self update task for gup.");
     match run_command_config_backgroundselfupdate(Some(0), true, paths) {
         Ok(_) => eprintln!(" Success."),
         Err(_) => eprintln!(" Failed."),
     };
 
-    eprint!("Removing startup self update configuration.");
+    eprint!("Removing startup self update configuration for gup.");
     match run_command_config_startupselfupdate(Some(0), true, &paths) {
         Ok(_) => eprintln!(" Success."),
         Err(_) => eprintln!(" Failed."),
     };
 
-    eprint!("Removing PATH modifications in startup scripts.");
+    eprint!("Removing gup PATH modifications in startup scripts.");
     match run_command_config_modifypath(Some(false), true, &paths) {
         Ok(_) => eprintln!(" Success."),
         Err(_) => eprintln!(" Failed."),
     };
 
-    eprint!("Removing symlinks.");
-    match run_command_config_symlinks(Some(false), true, &paths) {
+    // Removing channel symlinks is Julia-specific. Gup's symlinks are handled by removing gup_bin_dir.
+    // eprint!("Removing symlinks.");
+    // match run_command_config_symlinks(Some(false), true, &paths) {
+    //     Ok(_) => eprintln!(" Success."),
+    //     Err(_) => eprintln!(" Failed."),
+    // };
+
+    // Delete the main gup home directory which contains everything:
+    // projects, gup's own config, etc.
+    eprint!("Deleting gup home folder {:?}.", paths.guphome());
+    match std::fs::remove_dir_all(paths.guphome()) {
         Ok(_) => eprintln!(" Success."),
-        Err(_) => eprintln!(" Failed."),
+        Err(e) => eprintln!(" Failed ({}). You may need to remove it manually.", e), // Provide more error info
     };
 
-    eprint!("Deleting Juliaup home folder {:?}.", paths.juliauphome);
-    match std::fs::remove_dir_all(&paths.juliauphome) {
-        Ok(_) => eprintln!(" Success."),
-        Err(_) => eprintln!(" Failed."),
-    };
+    // The logic for deleting juliaupselfhome separately from juliauphome was complex
+    // and depended on how juliaup was installed (e.g. if it was installed to a custom location
+    // separate from its data directory).
+    // For gup, if `paths.guphome()` is the root, removing it should be sufficient.
+    // If gup's own binaries are installed elsewhere (e.g. system-wide by a package manager,
+    // or in a separate `gupselfhome`), that logic would need to be preserved/adapted.
+    // The current `GupGlobalPaths` has `gupselfhome` and `gupselfbin` under `cfg(feature = "selfupdate")`.
+    // If `gupselfhome` is different from `guphome`, it should also be cleaned up.
 
-    if paths.juliauphome != paths.juliaupselfhome {
-        let juliaup_binfolder_path = paths.juliaupselfhome.join("bin");
-        let julia_symlink_path = juliaup_binfolder_path.join("julia");
-        let julialauncher_path = juliaup_binfolder_path.join("julialauncher");
-        let juliaup_path = juliaup_binfolder_path.join("juliaup");
-        let juliaup_config_path = paths.juliaupselfhome.join("juliaupself.json");
-
-        eprint!("Deleting julia symlink {:?}.", julia_symlink_path);
-        match std::fs::remove_file(&julia_symlink_path) {
+    // This part assumes gup's own binaries might be in `paths.gupselfhome()` if different from `paths.guphome()`
+    // This is often the case if gup is installed via the installer script to a custom location.
+    #[cfg(feature = "selfupdate")]
+    if paths.guphome() != paths.gupselfhome() && paths.gupselfhome().exists() {
+        eprint!(
+            "Deleting gup installation folder {:?}.",
+            paths.gupselfhome()
+        );
+        match std::fs::remove_dir_all(paths.gupselfhome()) {
             Ok(_) => eprintln!(" Success."),
-            Err(_) => eprintln!(" Failed."),
-        };
-
-        eprint!("Deleting julialauncher binary {:?}.", julialauncher_path);
-        match std::fs::remove_file(&julialauncher_path) {
-            Ok(_) => eprintln!(" Success."),
-            Err(_) => eprintln!(" Failed."),
-        };
-
-        eprint!("Deleting juliaup binary {:?}.", juliaup_path);
-        match std::fs::remove_file(&juliaup_path) {
-            Ok(_) => eprintln!(" Success."),
-            Err(_) => eprintln!(" Failed."),
-        };
-
-        if juliaup_binfolder_path.read_dir()?.next().is_none() {
-            eprint!(
-                "Deleting the Juliaup bin folder {:?}.",
-                juliaup_binfolder_path
-            );
-            match std::fs::remove_dir(&juliaup_binfolder_path) {
-                Ok(_) => {
-                    eprintln!(" Success.");
-
-                    eprint!(
-                        "Deleting the Juliaup configuration file {:?}.",
-                        juliaup_config_path
-                    );
-                    match std::fs::remove_file(&juliaup_config_path) {
-                        Ok(_) => eprintln!(" Success."),
-                        Err(_) => eprintln!(" Failed."),
-                    };
-
-                    if paths.juliaupselfhome.read_dir()?.next().is_none() {
-                        eprint!("Deleting the Juliaup folder {:?}.", paths.juliaupselfhome);
-                        match std::fs::remove_dir(&paths.juliaupselfhome) {
-                            Ok(_) => eprintln!(" Success."),
-                            Err(_) => {
-                                eprintln!(" Failed, skipping removal of the entire Juliaup folder.")
-                            }
-                        };
-                    } else {
-                        eprintln!("The Juliaup folder {:?} is not empty, skipping removal of the entire Juliaup folder.", paths.juliaupselfhome);
-                    }
-                }
-                Err(_) => eprintln!(" Failed, skipping removal of the entire Juliaup folder."),
-            };
-        } else {
-            eprintln!("The Juliaup bin folder {:?} is not empty, skipping removal of the entire Juliaup folder.", juliaup_binfolder_path);
+            Err(e) => eprintln!(" Failed ({}). You may need to remove it manually.", e),
         }
+    } else if paths.guphome() == paths.gupselfhome() {
+        // If they are the same, guphome removal already handled it.
+        // We might still want to clean up the gup binary itself if it's in a standard system path
+        // but that's beyond what this script can reliably do without knowing how it was installed.
+        // The current executable deletion is very risky.
     }
 
-    eprintln!("Successfully removed Juliaup.");
+    // Deleting the running executable itself is problematic and platform-dependent.
+    // The original code attempted this for non-MSIX installs.
+    // For now, we'll skip direct deletion of the running `gup` binary.
+    // The user might need to remove it manually after running uninstall, or the OS handles it.
+    /*
+    if paths.guphome() != paths.gupselfhome() { // This condition needs to be re-evaluated for gup
+        let gup_binfolder_path = paths.gupselfbin(); // Assuming gupselfbin is correct
+        let gup_exe_path = gup_binfolder_path.join("gup"); // Assuming gup executable is named 'gup'
+        // ... logic to remove gup_exe_path and then gup_binfolder_path and gupselfhome if empty ...
+        // This is complex and error-prone, especially if gup is currently running from that location.
+    }
+    */
+
+    eprintln!("Successfully uninstalled gup. You may need to manually remove the gup executable if it was installed to a system PATH location not managed by gup's home directory, and restart your shell for PATH changes to take full effect.");
 
     Ok(())
 }
 
 #[cfg(not(feature = "selfupdate"))]
-use anyhow::Result;
+use anyhow::Result; // This use was already here, but make sure it's only compiled when needed.
 
 #[cfg(not(feature = "selfupdate"))]
 pub fn run_command_selfuninstall_unavailable() -> Result<()> {
     eprintln!(
-        "Self uninstall command is unavailable in this variant of Juliaup.
-This software was built with the intention of distributing it
-through a package manager other than cargo or upstream."
+        "Self uninstall command is unavailable in this variant of gup.
+This software may have been built with the intention of distributing it
+through a package manager." // Updated message
     );
     Ok(())
 }

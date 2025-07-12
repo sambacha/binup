@@ -2,12 +2,12 @@
 # shellcheck shell=dash
 # shellcheck disable=SC2039  # local is non-POSIX
 
-# This script is adapted for juliaup from the original rustup repository
+# This script is adapted for GUP from the original rustup repository
 # over at https://github.com/rust-lang/rustup. Names and urls have been
 # changed during the adaptation.
 
 # This is just a little script that can be downloaded from the internet to
-# install juliaup. It just does platform detection, downloads the installer
+# install GUP. It just does platform detection, downloads the installer
 # and runs it.
 
 # It runs on Unix shells like {a,ba,da,k,z}sh. It uses the common `local`
@@ -29,17 +29,17 @@ is_zsh() {
 
 set -u
 
-# If JULIAUP_SERVER is unset or empty, default it.
-JULIAUP_SERVER="${JULIAUP_SERVER:-https://julialang-s3.julialang.org}"
-JULIAUP_VERSION="THISISREPLACEDWITHREALVERSIONINGITHUBWORKFLOW"
+# If GUP_SERVER is unset or empty, default it.
+GUP_SERVER="${GUP_SERVER:-https://github.com/gup-project/gup/releases/download}"
+GUP_VERSION="THISISREPLACEDWITHREALVERSIONINGITHUBWORKFLOW"
 
 #XXX: If you change anything here, please make the same changes in setup_mode.rs
 usage() {
     cat 1>&2 <<EOF
-juliaup-init: the installer for juliaup
+gup-init: the installer for GUP
 
 USAGE:
-    juliaup-init [FLAGS] [OPTIONS]
+    gup-init [FLAGS] [OPTIONS]
 
 FLAGS:
     -y, --yes                   Disable confirmation prompt.
@@ -77,7 +77,7 @@ main() {
             ;;
     esac
 
-    local _url="${JULIAUP_SERVER}/juliaup/bin/juliainstaller-${JULIAUP_VERSION}-${_arch}${_ext}"
+    local _url="${GUP_SERVER}/v${GUP_VERSION}/gup-installer-${GUP_VERSION}-${_arch}${_ext}"
 
     local _dir
     if ! _dir="$(ensure mktemp -d)"; then
@@ -85,7 +85,7 @@ main() {
         # propagate exit status.
         exit 1
     fi
-    local _file="${_dir}/juliainstaller${_ext}"
+    local _file="${_dir}/gup-installer${_ext}"
 
     local _ansi_escapes_are_valid=false
     if [ -t 2 ]; then
@@ -127,7 +127,7 @@ main() {
         printf '%s\n' 'info: downloading installer' 1>&2
     fi
 
-    # Download juliaup
+    # Download GUP installer
     ensure mkdir -p "$_dir"
     ensure downloader "$_url" "$_file" "$_arch"
 
@@ -138,8 +138,8 @@ main() {
 
         printf '%s\n' "Please use a tmp location where you can execute binaries." 1>&2
         printf '%s\n' "Hint: you can change the tmp location with" 1>&2
-        printf '%s\n' "    mkdir -p ~/tmp && curl -fsSL https://install.julialang.org | TMPDIR=~/tmp sh" 1>&2
-        # Workaround adapted from  https://github.com/JuliaLang/juliaup/issues/450#issuecomment-1325439708
+        printf '%s\n' "    mkdir -p ~/tmp && curl -fsSL https://install.gup.dev | TMPDIR=~/tmp sh" 1>&2
+        # Workaround adapted from similar rustup/juliaup issues
         exit 1
     fi
 
@@ -394,15 +394,15 @@ get_architecture() {
     if [ "${_ostype}" = unknown-linux-gnu ] && [ "${_bitness}" -eq 32 ]; then
         case $_cputype in
             x86_64)
-                if [ -n "${JULIAUP_CPUTYPE:-}" ]; then
-                    _cputype="$JULIAUP_CPUTYPE"
+                if [ -n "${GUP_CPUTYPE:-}" ]; then
+                    _cputype="$GUP_CPUTYPE"
                 else {
                     # 32-bit executable for amd64 = x32
                     if is_host_amd64_elf; then {
                          echo "This host is running an x32 userland; as it stands, x32 support is poor," 1>&2
                          echo "and there isn't a native toolchain -- you will have to install" 1>&2
                          echo "multiarch compatibility with i686 and/or amd64, then select one" 1>&2
-                         echo "by re-running this script with the JULIAUP_CPUTYPE environment variable" 1>&2
+                         echo "by re-running this script with the GUP_CPUTYPE environment variable" 1>&2
                          echo "set to i686 or x86_64, respectively." 1>&2
                          exit 1
                     }; else
@@ -446,7 +446,7 @@ get_architecture() {
 }
 
 say() {
-    printf 'juliaup: %s\n' "$1"
+    printf 'gup: %s\n' "$1"
 }
 
 err() {
@@ -636,9 +636,9 @@ check_curl_for_retry_support() {
 # if support by local tools is detected. Detection currently supports these curl backends:
 # GnuTLS and OpenSSL (possibly also LibreSSL and BoringSSL). Return value can be empty.
 get_ciphersuites_for_curl() {
-    if [ -n "${JULIAUP_TLS_CIPHERSUITES-}" ]; then
+    if [ -n "${GUP_TLS_CIPHERSUITES-}" ]; then
         # user specified custom cipher suites, assume they know what they're doing
-        RETVAL="$JULIAUP_TLS_CIPHERSUITES"
+        RETVAL="$GUP_TLS_CIPHERSUITES"
         return
     fi
 
@@ -681,9 +681,9 @@ get_ciphersuites_for_curl() {
 # if support by local tools is detected. Detection currently supports these wget backends:
 # GnuTLS and OpenSSL (possibly also LibreSSL and BoringSSL). Return value can be empty.
 get_ciphersuites_for_wget() {
-    if [ -n "${JULIAUP_TLS_CIPHERSUITES-}" ]; then
+    if [ -n "${GUP_TLS_CIPHERSUITES-}" ]; then
         # user specified custom cipher suites, assume they know what they're doing
-        RETVAL="$JULIAUP_TLS_CIPHERSUITES"
+        RETVAL="$GUP_TLS_CIPHERSUITES"
         return
     fi
 

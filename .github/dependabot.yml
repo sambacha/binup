@@ -1,12 +1,40 @@
 version: 2
 updates:
-  # Maintain dependencies for cargo
+  # Enable version updates for Cargo
   - package-ecosystem: "cargo"
     directory: "/"
     schedule:
       interval: "weekly"
-  # Maintain dependencies for GitHub Actions
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "rust"
+    groups:
+      dev-dependencies:
+        patterns:
+          - "assert_*"
+          - "predicates"
+          - "tempfile"
+        update-types:
+          - "minor"
+          - "patch"
+      
+  # Enable version updates for GitHub Actions
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
+      day: "monday"
+      time: "10:00"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "github-actions"

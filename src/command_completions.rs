@@ -1,15 +1,14 @@
-use crate::cli;
+use crate::cli::GupCli;
 use anyhow::Result;
 use clap::CommandFactory;
 use clap_complete::Shell;
-use cli::Juliaup;
 use std::io;
 
 pub fn run_command_completions(shell: Shell) -> Result<()> {
     clap_complete::generate(
         shell,
-        &mut Juliaup::command(),
-        "juliaup",
+        &mut GupCli::command(),
+        "gup", // Changed from "juliaup" to "gup"
         &mut io::stdout().lock(),
     );
     Ok(())

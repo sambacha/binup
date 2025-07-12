@@ -4,28 +4,29 @@ use predicates::prelude::*;
 #[test]
 fn command_list() {
     let depot_dir = tempfile::Builder::new()
-        .prefix("juliauptest")
+        .prefix("guptest")
         .tempdir()
         .unwrap();
 
-    Command::cargo_bin("juliaup")
+    // Test list command when no projects are managed
+    Command::cargo_bin("gup")
         .unwrap()
         .arg("list")
-        .env("JULIA_DEPOT_PATH", depot_dir.path())
-        .env("JULIAUP_DEPOT_PATH", depot_dir.path())
+        .env("GUP_DEPOT_PATH", depot_dir.path())
         .assert()
         .success()
-        .stdout(predicate::str::starts_with(" Channel").and(predicate::str::contains("release")))
-        .stdout(predicate::str::contains("nightly"))
-        .stdout(predicate::str::contains("x.y-nightly"))
-        .stdout(predicate::str::contains("pr{number}"));
+        .stdout(predicate::str::contains(
+            "No projects are currently managed",
+        ));
 
-    Command::cargo_bin("juliaup")
+    // Test that ls is an alias for list
+    Command::cargo_bin("gup")
         .unwrap()
         .arg("ls")
-        .env("JULIA_DEPOT_PATH", depot_dir.path())
-        .env("JULIAUP_DEPOT_PATH", depot_dir.path())
+        .env("GUP_DEPOT_PATH", depot_dir.path())
         .assert()
         .success()
-        .stdout(predicate::str::starts_with(" Channel").and(predicate::str::contains("release")));
+        .stdout(predicate::str::contains(
+            "No projects are currently managed",
+        ));
 }

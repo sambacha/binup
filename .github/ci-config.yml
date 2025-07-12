@@ -1,0 +1,141 @@
+# CI Configuration for gup
+# This file defines CI optimization settings and build matrices
+
+# Path filters for conditional builds
+path_filters:
+  windows:
+    - 'src/**/*windows*.rs'
+    - 'src/**/*win*.rs'
+    - 'src/bin/gup_bootstrap.rs'
+    - 'tests/*windows*.rs'
+    - '.github/workflows/**/*windows*'
+  
+  macos:
+    - 'src/**/*macos*.rs'
+    - 'src/**/*darwin*.rs'
+    - 'tests/*macos*.rs'
+    - '.github/workflows/**/*macos*'
+  
+  linux:
+    - 'src/**/*linux*.rs'
+    - 'src/**/*unix*.rs'
+    - 'tests/*linux*.rs'
+  
+  freebsd:
+    - 'src/**/*freebsd*.rs'
+    - 'src/**/*bsd*.rs'
+
+# Build targets by tier
+targets:
+  tier1:  # Always build for releases, most common platforms
+    - target: x86_64-unknown-linux-gnu
+      os: ubuntu-latest
+      test: true
+    - target: x86_64-pc-windows-msvc
+      os: windows-latest
+      test: true
+    - target: x86_64-apple-darwin
+      os: macos-latest
+      test: true
+    - target: aarch64-apple-darwin
+      os: macos-latest
+      test: false  # Cross-compile only
+  
+  tier2:  # Build for releases only
+    - target: x86_64-unknown-linux-musl
+      os: ubuntu-latest
+      test: true
+      setup: |
+        sudo apt-get update
+        sudo apt-get install -y musl-tools
+    - target: aarch64-unknown-linux-gnu
+      os: ubuntu-latest
+      test: false
+      setup: |
+        sudo apt-get update
+        sudo apt-get install -y gcc-aarch64-linux-gnu
+    - target: i686-pc-windows-msvc
+      os: windows-latest
+      test: false
+    - target: x86_64-unknown-freebsd
+      os: ubuntu-latest
+      test: false
+      use_cross: true
+
+# Test configuration
+tests:
+  unit:
+    parallel: 4
+    timeout: 10
+  
+  integration:
+    parallel: 2
+    timeout: 30
+    critical:
+      - config_commands_tests
+      - multiplexer_tests
+      - gup_integration_test
+      - invariant_testing
+  
+  platform_specific:
+    windows:
+      - windows_shim_tests
+    macos:
+      - shell_integration_tests  # Tests macOS-specific shell behavior
+
+# Cache configuration
+cache:
+  version: v0
+  cleanup_days: 7
+  max_size_mb: 2048
+  
+  keys:
+    - name: quick-checks
+      paths: [target/debug/deps]
+    - name: linux-stable
+      paths: [target/debug, target/release]
+    - name: coverage
+      paths: [target/llvm-cov-target]
+    - name: doc-test
+      paths: [target/doc]
+
+# Performance tracking
+performance:
+  track_metrics:
+    - build_time
+    - test_time
+    - cache_hit_rate
+  
+  thresholds:
+    build_time_seconds: 300
+    test_time_seconds: 180
+    
+  storage:
+    backend: github_artifacts
+    retention_days: 30
+
+# Optimization flags
+optimization:
+  rust:
+    # Faster linking
+    linker_linux: "lld"
+    linker_macos: "ld64.lld"
+    
+    # Compilation flags
+    codegen_units: 16  # Faster compilation
+    incremental: false  # More predictable CI builds
+    
+    # Test optimizations
+    test_threads: 4
+    test_nocapture: false
+
+# Notification settings
+notifications:
+  slack:
+    enabled: false
+    webhook_url: "${SLACK_WEBHOOK}"
+    
+  github_comment:
+    enabled: true
+    on_failure: true
+    include_metrics: true

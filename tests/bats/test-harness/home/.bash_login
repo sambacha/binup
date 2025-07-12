@@ -1,0 +1,15 @@
+#!/bin/bash
+# Test harness .bash_login - Alternative login shell config
+
+# This file is read by bash for login shells if .bash_profile doesn't exist
+# Including it to test shell file detection
+
+# Source .profile if it exists
+if [ -f "$HOME/.profile" ]; then
+    . "$HOME/.profile"
+fi
+
+# Login shell specific configuration
+export LOGIN_SHELL=true
+
+# End of .bash_login

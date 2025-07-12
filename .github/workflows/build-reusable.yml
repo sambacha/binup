@@ -1,0 +1,89 @@
+name: Reusable Build Workflow
+
+on:
+  workflow_call:
+    inputs:
+      target:
+        required: true
+        type: string
+        description: 'Rust target triple'
+      os:
+        required: true
+        type: string
+        description: 'Runner OS'
+      features:
+        required: false
+        type: string
+        default: ''
+        description: 'Cargo features to enable'
+      artifact-name:
+        required: false
+        type: string
+        default: ''
+        description: 'Artifact name for upload'
+    outputs:
+      build-time:
+        description: 'Build duration in seconds'
+        value: ${{ jobs.build.outputs.duration }}
+
+jobs:
+  build:
+    name: Build ${{ inputs.target }}
+    runs-on: ${{ inputs.os }}
+    outputs:
+      duration: ${{ steps.timing.outputs.duration }}
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Start timing
+        id: start
+        run: echo "start_time=$(($(date +%s)))" >> $GITHUB_OUTPUT
+        shell: bash
+      
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ inputs.target }}
+      
+      - name: Install cross-compilation tools
+        if: contains(inputs.target, 'musl')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+      
+      - name: Cache cargo registry and build
+        uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: v0-rust
+          shared-key: build-${{ inputs.target }}
+          workspaces: ". -> target"
+          cache-targets: true
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      
+      - name: Build
+        run: |
+          cargo build --release --target ${{ inputs.target }} ${{ inputs.features && format('--features {0}', inputs.features) || '' }}
+        shell: bash
+      
+      - name: Upload artifact
+        if: inputs.artifact-name != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: |
+            target/${{ inputs.target }}/release/gup
+            target/${{ inputs.target }}/release/gup.exe
+            target/${{ inputs.target }}/release/gup-bootstrap
+            target/${{ inputs.target }}/release/gup-bootstrap.exe
+          if-no-files-found: error
+          retention-days: 3
+      
+      - name: Calculate build time
+        id: timing
+        if: always()
+        run: |
+          end_time=$(($(date +%s)))
+          duration=$((end_time - ${{ steps.start.outputs.start_time }}))
+          echo "duration=$duration" >> $GITHUB_OUTPUT
+          echo "::notice::Build duration for ${{ inputs.target }}: ${duration}s"
+        shell: bash

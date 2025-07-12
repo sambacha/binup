@@ -5,60 +5,31 @@ use predicates::prelude::predicate;
 fn command_add() {
     let depot_dir = assert_fs::TempDir::new().unwrap();
 
-    Command::cargo_bin("juliaup")
+    // Test adding a non-existent project - should fail gracefully
+    Command::cargo_bin("gup")
         .unwrap()
         .arg("add")
-        .arg("1.6.4")
-        .env("JULIA_DEPOT_PATH", depot_dir.path())
-        .env("JULIAUP_DEPOT_PATH", depot_dir.path())
+        .arg("non-existent-project")
+        .arg("1.0.0")
+        .env("GUP_DEPOT_PATH", depot_dir.path())
         .assert()
-        .success()
-        .stdout("");
+        .failure()
+        .stderr(predicate::str::contains("Project not found"));
 
-    Command::cargo_bin("juliaup")
+    // Test adding with invalid arguments - should show usage
+    Command::cargo_bin("gup")
         .unwrap()
         .arg("add")
-        .arg("nightly")
-        .env("JULIA_DEPOT_PATH", depot_dir.path())
-        .env("JULIAUP_DEPOT_PATH", depot_dir.path())
+        .env("GUP_DEPOT_PATH", depot_dir.path())
         .assert()
-        .success()
-        .stdout("");
+        .failure();
 
-    Command::cargo_bin("juliaup")
+    // Test adding project without version - should fail
+    Command::cargo_bin("gup")
         .unwrap()
         .arg("add")
-        .arg("1.11-nightly")
-        .env("JULIA_DEPOT_PATH", depot_dir.path())
-        .env("JULIAUP_DEPOT_PATH", depot_dir.path())
+        .arg("some-project")
+        .env("GUP_DEPOT_PATH", depot_dir.path())
         .assert()
-        .success()
-        .stdout("");
-
-    Command::cargo_bin("julia")
-        .unwrap()
-        .arg("+1.6.4")
-        .arg("-e")
-        .arg("print(VERSION)")
-        .env("JULIA_DEPOT_PATH", depot_dir.path())
-        .env("JULIAUP_DEPOT_PATH", depot_dir.path())
-        .assert()
-        .success()
-        .stdout("1.6.4");
-
-    Command::cargo_bin("julia")
-        .unwrap()
-        .arg("+nightly")
-        .arg("-e")
-        .arg("print(VERSION)")
-        .env("JULIA_DEPOT_PATH", depot_dir.path())
-        .env("JULIAUP_DEPOT_PATH", depot_dir.path())
-        .assert()
-        .success()
-        .stdout(
-            predicate::str::is_match(
-                "^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)-DEV\\.(0|[1-9]\\d*)",
-            )
-            .unwrap(),
-        );
+        .failure();
 }

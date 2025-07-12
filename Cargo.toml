@@ -1,14 +1,14 @@
 [package]
-name = "juliaup"
-version = "1.17.21"
-description = "Julia installer and version multiplexer"
-repository = "https://github.com/julialang/juliaup"
+name = "gup"
+version = "0.1.0" # Reset version for the new project
+description = "A generic installer and version multiplexer"
+repository = "https://github.com/gup-project/gup"
 license = "MIT"
-keywords = ["julia"]
+keywords = ["installer", "version-manager", "multiplexer", "cli"]
 categories = ["command-line-utilities"]
 edition = "2021"
-default-run = "juliaup"
-authors = ["David Anthoff <anthoff@berkeley.edu>"]
+default-run = "gup" # Changed from juliaup
+authors = ["David Anthoff <anthoff@berkeley.edu>"] # This can be updated if authors change
 exclude = [
     ".github/**",
     ".vscode/**",
@@ -16,7 +16,7 @@ exclude = [
     "deploy/**",
     "devdocs/**",
     "scripts/**",
-    "download_bundled_julia.ps1",
+    "*.legacy",
 ]
 
 [profile.release]
@@ -28,7 +28,6 @@ codegen-units = 1
 [dependencies]
 clap = { version = "4.5", features = ["derive"] }
 clap_complete = "4.5"
-dirs = "6.0.0"
 dunce = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -37,17 +36,18 @@ anyhow = "1.0.72"
 tempfile = "3.12"
 flate2 = "1.0"
 tar = "0.4.39"
+zip = "2.1.3" # Added zip crate
 normpath = "1.3"
 fs_extra = "1.3.0"
 thiserror = "2.0"
 indicatif = "0.17"
 console = "0.15"
 ctrlc = "3.4"
-url = "2.4.0"
+url = { version = "2.4.0", features = ["serde"] }
 cli-table = "0.5.0"
 itertools = "0.14.0"
 cluFlock = "1.2.7"
-chrono = { version = "0.4.26", features = ["serde"] }
+chrono = { version = "0.4.38", features = ["serde"] } # Updated version
 human-panic = "2.0"
 log = "0.4.25"
 env_logger = "0.11"
@@ -60,6 +60,8 @@ is-terminal = "0.4"
 path-absolutize = "3.1.0"
 human-sort = "0.2.2"
 regex = "1.10"
+termcolor = "1.4" # Added termcolor
+user_dirs = "0.2.0"
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.61.1", features = ["Win32_Foundation", "Win32_UI_Shell", "Win32_Security", "Win32_System_JobObjects", "Win32_System_Console", "Win32_System_Threading", "Services_Store", "Foundation", "Foundation_Collections", "Web_Http", "Web_Http_Headers", "Storage_Streams", "Management_Deployment"] }
@@ -91,18 +93,18 @@ indoc = "2.0"
 predicates = "3.1"
 
 [features]
-selfupdate = []
-windowsstore = []
-windowsappinstaller = []
-dummy = []
-binjuliainstaller = []
-binjulialauncher = []
-winpkgidentityext = []
+selfupdate = [] # Keep selfupdate feature
+windowsstore = [] # May remove or adapt if gup is not Windows Store specific
+windowsappinstaller = [] # May remove or adapt
+dummy = [] # Keep for testing if still relevant
+bingupbootstrap = [] # Renamed from binjuliainstaller
+# binjulialauncher is removed
+winpkgidentityext = [] # May remove or adapt
 
 [package.metadata.msix]
 winstoremsix = { file = "deploy/msix/PackagingLayout.xml", variables = [
     {name = "FlatBundle", value="false"},
-    {name = "PublisherDisplayName", value="JuliaHub, Inc."},
+    {name = "PublisherDisplayName", value="Julia Computing, Inc."},
     {name = "IdentityPublisher", value = "CN=7FB784C5-4411-4067-914E-A7B06CC00FFC"}
 ] }
 winappinstallermsix = { file = "deploy/msix/PackagingLayout.xml", variables = [
@@ -116,20 +118,14 @@ winappinstaller = "deploy/winappinstaller/Julia.appinstaller"
 
 [package.metadata.winres]
 
-[[bin]]
-name = "julia"
-path = "src/bin/julialauncher.rs"
+# The 'julia' and 'julialauncher' binaries are effectively replaced by gup's multiplexer mode.
+# We will have one main 'gup' binary and potentially a 'gup-bootstrap' for initial setup.
 
 [[bin]]
-name = "julialauncher"
-path = "src/bin/julialauncher.rs"
-required-features = ["binjulialauncher"]
+name = "gup"
+path = "src/bin/gup.rs"
 
 [[bin]]
-name = "juliaup"
-path = "src/bin/juliaup.rs"
-
-[[bin]]
-name = "juliainstaller"
-path = "src/bin/juliainstaller.rs"
-required-features = ["binjuliainstaller"]
+name = "gup-bootstrap"
+path = "src/bin/gup_bootstrap.rs"
+required-features = ["bingupbootstrap"]

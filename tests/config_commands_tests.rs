@@ -6,7 +6,6 @@ use gup::command_config_modifypath::run_command_config_modifypath;
 use gup::command_config_startupselfupdate::run_command_config_startupselfupdate;
 use gup::global_config_manager::*;
 use gup::global_paths::get_gup_paths;
-use gup::state_config::GupGlobalConfig;
 use std::env;
 use tempfile::TempDir;
 

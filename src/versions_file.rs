@@ -1,7 +1,4 @@
 use std::{fs::File, io::BufReader};
-
-// use std::fs::File;
-// use std::io::BufReader;
 // use crate::utils::get_juliaup_home_path;
 // Removed get_bundled_dbversion as it's no longer used
 use crate::{global_paths::GupGlobalPaths, jsonstructs_versionsdb::ProjectVersionsDB};

@@ -26,11 +26,11 @@ pub fn run_command_config_symlinks(
                     if value {
                         // TODO: Channel-specific symlinks need project context
                         // For now, create generic channel symlinks
-                        create_symlink(channel, &format!("gup-{}", channel_name), paths)?;
+                        create_executable_symlink(channel, &format!("gup-{}", channel_name), paths)?;
                     } else {
                         // TODO: Channel-specific symlinks need project context
                         // For now, remove generic channel symlinks
-                        remove_symlink(&format!("gup-{}", channel_name))?;
+                        remove_executable_symlink(&format!("gup-{}", channel_name))?;
                     }
                 }
             }
